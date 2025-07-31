@@ -99,6 +99,17 @@ jobs:
         run: |
           podman pull "${{ steps.vars.outputs.src_image }}"
 
+      - name: Detectar soporte FUSE / elegir driver
+        id: storage
+        shell: bash
+        run: |
+          if [ -e /dev/fuse ]; then
+            echo "driver=overlay" >> $GITHUB_OUTPUT
+          else
+            echo "driver=vfs" >> $GITHUB_OUTPUT
+          fi
+          echo "Elegido driver: $(cat $GITHUB_OUTPUT | cut -d= -f2)"
+
       - name: Construir y registrar AMI con bootc-image-builder
         run: |
           podman run \
@@ -108,6 +119,7 @@ jobs:
             --pull=newer \
             --security-opt label=type:unconfined_t \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -e STORAGE_DRIVER=${{ steps.storage.outputs.driver }} \
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
             -e AWS_REGION \
