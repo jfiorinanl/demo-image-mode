@@ -95,7 +95,7 @@ jobs:
   publish-ami:
     name: Publish AMI from bootc (AWS)
     needs: [ rhel-bootc-image-build ]
-    uses: ./.github/workflows/publish-ami-from-bootc.yml
+    uses: ./.github/workflows/create_ami.yml
     with:
       image_tag: ${{ needs.rhel-bootc-image-build.outputs.image_tag }}
       ami_name_override: ${{ vars.AMI_NAME_PREFIX }}-${{ needs.rhel-bootc-image-build.outputs.image_tag }}-${{ github.run_number }}
