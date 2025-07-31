@@ -51,12 +51,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar podman y awscli
+      - name: Instalar podman 
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman awscli
+          sudo apt-get install -y podman 
           podman --version
-          aws --version
 
       - name: Preparar variables
         id: vars
