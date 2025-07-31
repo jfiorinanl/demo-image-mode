@@ -32,6 +32,7 @@ jobs:
       packages: read
 
     env:
+      SOURCE_REGISTRY_HOST: "registry.redhat.io"
       DEST_REGISTRY_HOST: ghcr.io
       REPO_OWNER: ${{ github.repository_owner }}
       REPO_NAME: ${{ github.event.repository.name }}
