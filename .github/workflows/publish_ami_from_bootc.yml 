@@ -1,5 +1,4 @@
 name: Publish AMI from bootc (AWS)
-
 on:
   workflow_call:
     inputs:
@@ -65,7 +64,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           auth_file_path: /run/containers/0/auth.json
-          
+
       - name: Log in to the RHT terms based registry
         uses: redhat-actions/podman-login@v1
         with:
