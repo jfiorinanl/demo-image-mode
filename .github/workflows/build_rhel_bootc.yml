@@ -10,39 +10,20 @@ jobs:
     name: Build RHEL bootc image with repo access
     runs-on: ubuntu-latest
     env:
-      # Disable Subscription Manager container passthrough
       SMDEV_CONTAINER_OFF: 1
-      # Subscription Manager credentials - uses repository secrets
-      # RHT_ORGID: "${{ secrets.RHT_ORGID }}"
-      # RHT_ACT_KEY: "${{ secrets.RHT_ACT_KEY }}"
-      
-      # Source registry for base image
       SOURCE_REGISTRY_HOST: "registry.redhat.io"
-      # Source credentials - uses repository secrets
-      # SOURCE_REGISTRY_USER: "${{ secrets.SOURCE_REGISTRY_USER }}"
-      # SOURCE_REGISTRY_PASSWORD: "${{ secrets.SOURCE_REGISTRY_PASSWORD }}"
-
-      # Containerfile to build
       CONTAINERFILE: Containerfile
-
-      # Destination image namespace and name (eg: myrepo/myimage)
-      DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
-
-      # List of tags to publish
+      DEST_IMAGE: "${{ github.actor }}/${{ github.event.repository.name }}"
       TAGLIST: latest ${{ github.sha }} ${{ github.ref_name }}
-
-      # Destination registry for built images
       DEST_REGISTRY_HOST: "ghcr.io"
-      # Destination credentials - uses platform variables and secrets
-      # DEST_REGISTRY_USER: "${{ github.actor }}"
-      # DEST_REGISTRY_PASSWORD: "${{ secrets.GITHUB_TOKEN }}"
-
     container:
       image: registry.access.redhat.com/ubi9/ubi
       options: --privileged
     permissions:
       contents: write
       packages: write
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.image_tag }}
 
     steps:
       - name: Clone the repository
@@ -54,7 +35,6 @@ jobs:
       - name: Access a subscription via activation key
         run: subscription-manager register --org=${{ secrets.RHT_ORGID }} --activationkey=${{ secrets.RHT_ACT_KEY }}
 
-      # workaround for https://github.com/redhat-actions/podman-login/issues/42 since the docker config from the host doesn't come up to the container
       - name: Workaround open podman-login action issue
         env:
           auth: "{ \"auths\": {} }"
@@ -94,6 +74,29 @@ jobs:
           tags: ${{ steps.build-image.outputs.tags }}
           registry: ${{ env.DEST_REGISTRY_HOST }}
 
+      # >>> NUEVO: determinamos qué tag se usó para pasar al workflow de AMI
+      - name: Determinar tag principal
+        id: set-tag
+        shell: bash
+        run: |
+          # Si el disparador fue por tag, usamos ese; sino, usamos el nombre de la rama o 'latest'
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ -n "${GITHUB_REF_NAME}" ]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${GITHUB_REF_NAME:-latest}"
+          fi
+          echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Tag seleccionado: $tag"
+
       - name: Clean up the subscription
         if: always()
         run: subscription-manager unregister
+
+  publish-ami:
+    name: Publish AMI from bootc (AWS)
+    needs: [ rhel-bootc-image-build ]
+    uses: ./.github/workflows/publish-ami-from-bootc.yml
+    with:
+      image_tag: ${{ needs.rhel-bootc-image-build.outputs.image_tag }}
+      ami_name_override: ${{ vars.AMI_NAME_PREFIX }}-${{ needs.rhel-bootc-image-build.outputs.image_tag }}-${{ github.run_number }}
+    secrets: inherit 

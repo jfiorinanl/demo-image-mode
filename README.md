@@ -1,54 +1,65 @@
-# redhat-image-mode-actions
-## Template repo for Github Actions based builds of bootc images. 
-This repository is designed be used with the exercise in the redhat-cop/redhat-image-mode-demo repository. This template provides a sample Containerfile and workflow as a starting point for use in your own account. The workflow can be triggered in two ways, by creating a tag or manually. A manual trigger will set one of the tags to the branch name which may overwrite older manual builds.  For more information on the workflow design, refer to the exercise.
+# netlabs-image-mode-actions
 
-## Workflow variables to be aware of
-In the `env` section of the [.github/workflows/build_rhel_bootc.yml](.github/workflows/build_rhel_bootc.yml) file, there are several values that can be used to influence how the build is managed. They are injected as environment variables throughout the workflow. For this GitHub template, some of these are platform variables and others are secrets defined in the repository or by the platform. We attempt to keep these variables similar across all examples, the workflow file will have comments where platform specific changes are used.
+## Repositorio de demostración para builds de imágenes bootc con GitHub Actions
 
-The following table describes all of the variables within the workflow:
+Este repositorio forma parte de una demo de **Netlabs** orientada a mostrar cómo construir imágenes RHEL en modo *bootc* utilizando GitHub Actions. Contiene una plantilla base con un `Containerfile` y un flujo de trabajo que puede adaptarse a distintos entornos o proyectos.
 
-| Variables | Description | Default Value | Customization Required |
-| --------- | ----------- | ------------- | ------ |
-| `SMDEV_CONTAINER_OFF` | Disables Subscription Manager within a container (Should not be modified) | `1` | No |
-| `RHT_ORGID` | Red Hat Subscription Manager Organization ID |  | Yes |
-| `RHT_ACT_KEY` | Red Hat Subscription Manager Activation Key |  | Yes |
-| `SOURCE_REGISTRY_HOST` | Hostname of the registry containing the source image | `registry.redhat.io` | No |
-| `SOURCE_REGISTRY_USER` | Username for the registry containing the base image |  | Yes |
-| `SOURCE_REGISTRY_PASSWORD` | Password for the registry containing the base image |  | Yes |
-| `CONTAINERFILE` | Containerfile to build | `Containerfile` | No |
-| `DEST_IMAGE` | Destination image namespace and repository for the build (such as `myrepo/myimage`) | `github-user/github-repo-name` | No |
-| `TAGLIST` | Space separated list of tags to include as part of the image | `latest`, short SHA of the commit, branch name | No |
-| `DEST_REGISTRY_HOST` | Hostname of the registry containing the built image | `ghcr.io` | No |
-| `DEST_REGISTRY_USER` | Username for the registry containing the built image | GitHub user | No |
-| `DEST_REGISTRY_PASSWORD` | Password for the registry containing the built image | User access token | No |
+El flujo puede ser ejecutado manualmente o mediante la creación de un tag. En ejecuciones manuales, una de las etiquetas generadas será el nombre de la rama, lo cual puede sobrescribir builds anteriores.
 
-## Using Red Hat accounts
-For RHEL, this template uses an *activation key* to get access to a subscription and a *service account* to get access to the terms based registry images. These are secrets defined within the repo settings.You can easily change the names of these in the repo and the workflow file to suit your own standards.
+---
 
-## Accessing a subscription during build
+## Variables del flujo de trabajo
 
-To use packages from the RHEL repositories, the GHA runner will need to have subscription information available. This workflow will register the build container, execute the build, and then unregister as a final step. You will only be using the subscription for the duration of the build. To use `subscription-manager` in a pipieline like this, it's easiest to use an activation key. If you don't have a subscription already, the [No-cost RHEL for developers subscription](https://developers.redhat.com/products/rhel/download) is a good option.
+En la sección `env` del archivo [.github/workflows/build_rhel_bootc.yml](.github/workflows/build_rhel_bootc.yml), se definen múltiples variables que influyen en el comportamiento del build. Algunas provienen del entorno de ejecución y otras deben configurarse como *secrets* dentro del repositorio.
 
-If you aren't familiar with activation keys, from the docs:
-> An activation key is a preshared authentication token that enables authorized users to register and auto-configure systems. Running a registration command with an activation key and organization  ID combination, instead of a username and password combination, increases security and facilitates automation.
+| Variable | Descripción | Valor por defecto | ¿Requiere personalización? |
+| -------- | ----------- | ----------------- | --------------------------- |
+| `SMDEV_CONTAINER_OFF` | Desactiva el uso de Subscription Manager en el contenedor | `1` | No |
+| `RHT_ORGID` | ID de organización para acceder al Subscription Manager de Red Hat |  | Sí |
+| `RHT_ACT_KEY` | Clave de activación del Subscription Manager |  | Sí |
+| `SOURCE_REGISTRY_HOST` | Host del registro de la imagen base | `registry.redhat.io` | No |
+| `SOURCE_REGISTRY_USER` | Usuario del registro (cuenta de servicio) |  | Sí |
+| `SOURCE_REGISTRY_PASSWORD` | Contraseña del registro (token) |  | Sí |
+| `CONTAINERFILE` | Nombre del archivo de construcción | `Containerfile` | No |
+| `DEST_IMAGE` | Imagen destino con nombre de repositorio (`miusuario/mimagen`) | `github-user/github-repo-name` | No |
+| `TAGLIST` | Lista de tags a aplicar a la imagen | `latest`, SHA corto, nombre de rama | No |
+| `DEST_REGISTRY_HOST` | Registro de destino donde se publicará la imagen | `ghcr.io` | No |
+| `DEST_REGISTRY_USER` | Usuario del registro de destino | Usuario de GitHub | No |
+| `DEST_REGISTRY_PASSWORD` | Token de acceso al registro de destino | Token de acceso | No |
 
-[Creating an activation key in the console](https://docs.redhat.com/en/documentation/subscription_central/1-latest/html/getting_started_with_activation_keys_on_the_hybrid_cloud_console/assembly-creating-managing-activation-keys#proc-creating-act-keys-console_)
+---
 
-### Activation key secrets
-To use this template, the following two secrets need to be created as *Actions secrets and variables* with the appropriate values:
+## Acceso a la suscripción durante la compilación
 
-* *RHT_ORGID* stores the Organization ID
-* *RHT_ACT_KEY* stores the Activation key name
+Para instalar paquetes desde los repositorios oficiales de RHEL durante la construcción, el contenedor debe estar temporalmente registrado. Este flujo de trabajo gestiona la suscripción de manera temporal, registrando y anulando el registro automáticamente.
 
-## Getting access to the base image
-Unlike UBI, the bootc base image does require an account to access since this is a full RHEL host. To log into the registry during a pipeline build or other automation, you can [create a regitry service account](https://access.redhat.com/RegistryAuthentication#registry-service-accounts-for-shared-environments-4) in tne customer portal.
+Se recomienda utilizar una **clave de activación** para este fin. Si aún no tenés una suscripción válida, podés solicitar una gratuita para desarrolladores:  
+[https://developers.redhat.com/products/rhel/download](https://developers.redhat.com/products/rhel/download)
 
-### Token secrets
-To use this template, the following two secrets need to be created as *Actions secrets and variables* with the appropriate values:
+> Una clave de activación permite registrar un sistema sin exponer usuario y contraseña, facilitando la automatización y aumentando la seguridad.
 
-* *SOURCE_REGISTRY_USER* stores the token username (has a "|" character in the name)
-* *SOURCE_REGISTRY_PASSWORD* stores the token password
+### Secrets requeridos para la suscripción
 
-## Other resources
+Estos valores deben ser configurados como *Actions secrets* dentro del repositorio:
 
-This repository is one example of several](https://gitlab.com/redhat/cop/rhel/rhel-image-mode-cicd) for using common Continuous Integration and Continuous Delivery tools to produce image mode for RHEL instances.
+- `RHT_ORGID`: ID de la organización
+- `RHT_ACT_KEY`: Nombre de la clave de activación
+
+---
+
+## Acceso a la imagen base
+
+A diferencia de las imágenes UBI, las imágenes base *bootc* requieren autenticación. Para ello, se recomienda generar una **cuenta de servicio para el registro** desde el [portal de clientes de Red Hat](https://access.redhat.com/RegistryAuthentication#registry-service-accounts-for-shared-environments-4).
+
+### Secrets requeridos para el acceso al registro
+
+- `SOURCE_REGISTRY_USER`: Usuario/token (contiene el carácter `|`)
+- `SOURCE_REGISTRY_PASSWORD`: Contraseña/token
+
+---
+
+## Recursos adicionales
+
+Este repositorio forma parte de las iniciativas de Netlabs para demostrar pipelines automatizados de construcción de imágenes RHEL en modo bootc, integrando herramientas modernas de CI/CD como GitHub Actions.
+
+Para consultas o colaboración, podés contactarte con nuestro equipo.

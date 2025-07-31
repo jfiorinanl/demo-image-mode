@@ -1,0 +1,128 @@
+name: Publish AMI from bootc (AWS)
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Tag de la imagen en GHCR"
+        required: true
+        type: string
+      ami_name_override:
+        description: "Nombre AMI opcional: si no se envía, se arma por defecto"
+        required: false
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_REGION:
+        required: true
+      AWS_S3_BUCKET:
+        required: true
+
+jobs:
+  build-ami:
+    name: Build & Register AMI from GHCR bootc image
+    runs-on: ubuntu-latest
+    container:
+      image: registry.access.redhat.com/ubi9/ubi
+      options: --privileged
+    permissions:
+      contents: read
+      packages: read
+
+    env:
+      DEST_REGISTRY_HOST: ghcr.io
+      REPO_OWNER: ${{ github.repository_owner }}
+      REPO_NAME: ${{ github.event.repository.name }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      AMI_NAME_PREFIX: ${{ vars.AMI_NAME_PREFIX }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar herramientas de contenedores
+        run: dnf -y install podman skopeo
+
+      - name: Workaround podman-login
+        env:
+          auth: "{ \"auths\": {} }"
+        run: |
+          mkdir -p $HOME/.docker
+          echo $auth > $HOME/.docker/config.json
+
+      - name: Login a GHCR (lectura de imagen)
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.DEST_REGISTRY_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          auth_file_path: /run/containers/0/auth.json
+          
+      - name: Log in to the RHT terms based registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.SOURCE_REGISTRY_HOST }}
+          username: ${{ secrets.SOURCE_REGISTRY_USER }}
+          password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
+          auth_file_path: /run/containers/0/auth.json
+
+      - name: Preparar referencias de imagen y nombre AMI
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_IMAGE="ghcr.io/${REPO_OWNER}/${REPO_NAME}:${IMAGE_TAG}"
+
+          # Nombre AMI: prioridad a input override, luego prefix de vars, luego repo+tag+run_number
+          if [ -n "${{ inputs.ami_name_override }}" ]; then
+            AMI_NAME="${{ inputs.ami_name_override }}"
+          elif [ -n "${AMI_NAME_PREFIX:-}" ]; then
+            AMI_NAME="${AMI_NAME_PREFIX}-${IMAGE_TAG}-${GITHUB_RUN_NUMBER}"
+          else
+            AMI_NAME="${REPO_NAME}-${IMAGE_TAG}-${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "src_image=$SRC_IMAGE" >> $GITHUB_OUTPUT
+          echo "ami_name=$AMI_NAME" >> $GITHUB_OUTPUT
+          echo "Usando imagen: $SRC_IMAGE"
+          echo "Nombre AMI:   $AMI_NAME"
+
+      - name: Pre-pull de la imagen bootc desde GHCR
+        run: |
+          podman pull "${{ steps.vars.outputs.src_image }}"
+
+      - name: Construir y registrar AMI con bootc-image-builder
+        run: |
+          podman run \
+            --rm \
+            -it \
+            --privileged \
+            --pull=newer \
+            --security-opt label=type:unconfined_t \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_REGION \
+            -e AWS_DEFAULT_REGION \
+            registry.redhat.io/rhel9/bootc-image-builder:9.6 \
+              --type ami \
+              --aws-ami-name "${{ steps.vars.outputs.ami_name }}" \
+              --aws-bucket "${AWS_S3_BUCKET}" \
+              --aws-region "${AWS_REGION}" \
+              "${{ steps.vars.outputs.src_image }}"
+
+      - name: Resultado
+        run: |
+          echo "AMI:    ${{ steps.vars.outputs.ami_name }}"
+          echo "Región: ${AWS_REGION}"
+          echo "Bucket: ${AWS_S3_BUCKET}"
+          echo "Tag:    ${IMAGE_TAG}"
+          echo "Verificá en EC2 > AMIs hasta que el estado sea 'available'."

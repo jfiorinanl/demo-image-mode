@@ -1,12 +1,10 @@
-MAINTAINER Alessandro Rossi <al.rossi87@gmail.com>
-
 FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
 #install software
 RUN dnf -y install tmux mkpasswd
 
 #configure bootc-user
-RUN pass=$(mkpasswd --method=SHA-512 --rounds=4096 redhat) && useradd -m -G wheel bootc-user -p $pass
+RUN pass=$(mkpasswd --method=SHA-512 --rounds=4096 netlabs) && useradd -m -G wheel bootc-user -p $pass
 
 #setup sudo to not require password
 RUN echo "%wheel        ALL=(ALL)       NOPASSWD: ALL" > /etc/sudoers.d/wheel-sudo
