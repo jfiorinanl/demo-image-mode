@@ -1,4 +1,4 @@
-name: Publish AMI from bootc (AWS) - Minimal
+name: Publish
 
 on:
   workflow_call:
@@ -85,7 +85,6 @@ jobs:
           sudo mkdir -p /root/.config/containers
           echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | sudo podman login registry.redhat.io \
             -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin
-          sudo test -f /root/.config/containers/auth.json && sudo ls -l /root/.config/containers/auth.json
 
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |

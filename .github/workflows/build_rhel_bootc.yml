@@ -1,4 +1,4 @@
-name: Build RHEL bootc image with GHA
+name: Build and push
 on:
   workflow_dispatch:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   rhel-bootc-image-build:
-    name: Build RHEL bootc image with repo access
+    name: 
     runs-on: ubuntu-latest
     env:
       SMDEV_CONTAINER_OFF: 1
