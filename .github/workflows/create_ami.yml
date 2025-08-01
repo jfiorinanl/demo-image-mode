@@ -89,6 +89,7 @@ jobs:
       - name: Login a registry.redhat.io (rootful)
         run: |
           sudo mkdir -p /root/.config/containers
+          sudo chmod -R 777 /root/.config/containers
 
       - name: Log in to the RHT terms based registry
         uses: redhat-actions/podman-login@v1
