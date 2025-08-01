@@ -51,10 +51,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar podman 
+      - name: Instalar podman
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman 
+          sudo apt-get install -y podman
           podman --version
 
       - name: Preparar variables
@@ -79,23 +79,23 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Log in to the RHT terms based registry
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: registry.redhat.io
-          username: ${{ secrets.SOURCE_REGISTRY_USER }}
-          password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
-          auth_file_path: /run/containers/0/auth.json
+      # ⬇️ Reemplaza el action por login rootful para registry.redhat.io
+      - name: Login a registry.redhat.io (rootful)
+        run: |
+          sudo mkdir -p /root/.config/containers
+          echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | sudo podman login registry.redhat.io \
+            -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin
+          sudo test -f /root/.config/containers/auth.json && sudo ls -l /root/.config/containers/auth.json
+
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |
           sudo podman run \
             --rm \
             --privileged \
             --pull=newer \
-            --security-opt label=type:unconfined_t \
             -e CONTAINERS_STORAGE_DRIVER=vfs \
-            -e REGISTRY_AUTH_FILE=/run/containers/0/auth.json \
-            -v /run/containers/0/auth.json:/run/containers/0/auth.json:ro \
+            -e REGISTRY_AUTH_FILE=/tmp/auth.json \
+            -v /root/.config/containers/auth.json:/tmp/auth.json:ro \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
