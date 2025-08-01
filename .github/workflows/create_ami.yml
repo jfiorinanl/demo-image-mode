@@ -75,6 +75,12 @@ jobs:
           echo "Usando imagen: $SRC_IMAGE"
           echo "Nombre AMI:   $AMI_NAME"
 
+      - name: Workaround open podman-login action issue
+        env:
+          auth: "{ \"auths\": {} }"
+        run: |
+          mkdir -p $HOME/.docker
+          echo $auth > $HOME/.docker/config.json
       - name: Login a GHCR (rootful)
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -83,8 +89,14 @@ jobs:
       - name: Login a registry.redhat.io (rootful)
         run: |
           sudo mkdir -p /root/.config/containers
-          echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | sudo podman login registry.redhat.io \
-            -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin --authfile /root/.config/containers/auth.json
+
+      - name: Log in to the RHT terms based registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: registry.redhat.io
+          username: ${{ secrets.SOURCE_REGISTRY_USER }}
+          password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
+          auth_file_path: /root/.config/containers/auth.json
 
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |
