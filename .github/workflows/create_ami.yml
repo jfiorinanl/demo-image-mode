@@ -84,7 +84,7 @@ jobs:
         run: |
           sudo mkdir -p /root/.config/containers
           echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | sudo podman login registry.redhat.io \
-            -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin
+            -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin --authfile /root/.config/containers/auth.json
 
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |
