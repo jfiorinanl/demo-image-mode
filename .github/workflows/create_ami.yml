@@ -104,7 +104,7 @@ jobs:
             --pull=newer \
             -e CONTAINERS_STORAGE_DRIVER=vfs \
             -e REGISTRY_AUTH_FILE=/tmp/auth.json \
-            -v /tmp/storage-run-0/containers/auth.json:/tmp/auth.json:ro \
+            -v /home/runner/.docker/config.json:/tmp/auth.json:ro \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
