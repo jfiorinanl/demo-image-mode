@@ -99,11 +99,11 @@ jobs:
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |
           sudo podman run \
-            --rm \
+            --rm --it \
             --privileged \
             --pull=newer \
-            -e CONTAINERS_STORAGE_DRIVER=vfs \
-            -v /home/runner/.docker/config.json:/run/containers/0/auth.json:ro \
+            --security-opt label=type:unconfined_t \
+            -v /home/runner/.docker/config.json:/run/containers/0/auth.json \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
