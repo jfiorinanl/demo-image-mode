@@ -86,7 +86,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          auth_file_path: /tmp/auth/auth.json
+          auth_file_path: /tmp/storage-run-0/containers/auth.json
 
       - name: Log in to the RHT terms based registry
         uses: redhat-actions/podman-login@v1
@@ -94,7 +94,7 @@ jobs:
           registry: registry.redhat.io
           username: ${{ secrets.SOURCE_REGISTRY_USER }}
           password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
-          auth_file_path: /tmp/auth/auth.json
+          auth_file_path: /tmp/storage-run-0/containers/auth.json
 
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |
@@ -104,7 +104,7 @@ jobs:
             --pull=newer \
             -e CONTAINERS_STORAGE_DRIVER=vfs \
             -e REGISTRY_AUTH_FILE=/tmp/auth.json \
-            -v /tmp/auth/auth.json:/tmp/auth.json:ro \
+            -v /tmp/storage-run-0/containers/auth.json:/tmp/auth.json:ro \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
