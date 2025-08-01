@@ -51,12 +51,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar podman
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y podman
-          podman --version
-
       - name: Preparar variables
         id: vars
         shell: bash
@@ -81,15 +75,18 @@ jobs:
         run: |
           mkdir -p $HOME/.docker
           echo $auth > $HOME/.docker/config.json
-      - name: Login a GHCR (rootful)
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      # ⬇️ Reemplaza el action por login rootful para registry.redhat.io
       - name: Login a registry.redhat.io (rootful)
         run: |
-          sudo mkdir -p /root/.config/containers
-          sudo chmod -R 777 /root/.config/containers
+          sudo mkdir -p /tmp/auth
+
+      - name: Log in to the GitHub Container registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          auth_file_path: /tmp/auth/auth.json
 
       - name: Log in to the RHT terms based registry
         uses: redhat-actions/podman-login@v1
@@ -97,7 +94,7 @@ jobs:
           registry: registry.redhat.io
           username: ${{ secrets.SOURCE_REGISTRY_USER }}
           password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
-          auth_file_path: /root/.config/containers/auth.json
+          auth_file_path: /tmp/auth/auth.json
 
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
         run: |
@@ -107,7 +104,7 @@ jobs:
             --pull=newer \
             -e CONTAINERS_STORAGE_DRIVER=vfs \
             -e REGISTRY_AUTH_FILE=/tmp/auth.json \
-            -v /root/.config/containers/auth.json:/tmp/auth.json:ro \
+            -v /tmp/auth/auth.json:/tmp/auth.json:ro \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
