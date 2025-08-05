@@ -315,24 +315,21 @@ jobs:
                 
                 # Create bootc upgrade script
                 NEW_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}"
-                cat > bootc-upgrade.sh << EOF
-#!/bin/bash
-set -euo pipefail
-
-# Update container image reference
-NEW_IMAGE="$NEW_IMAGE"
-
-echo "🚀 Starting bootc upgrade to: \$NEW_IMAGE"
-
-# Switch to new image (this stages the new image)
-sudo bootc switch "\$NEW_IMAGE"
-
-# Check status
-sudo bootc status
-
-echo "✅ Bootc upgrade staged. Reboot required to activate."
-echo "Current staged image: \$NEW_IMAGE"
-EOF
+                
+                # Write bootc upgrade script directly
+                echo '#!/bin/bash' > bootc-upgrade.sh
+                echo 'set -euo pipefail' >> bootc-upgrade.sh
+                echo '' >> bootc-upgrade.sh  
+                echo "echo '🚀 Starting bootc upgrade to: $NEW_IMAGE'" >> bootc-upgrade.sh
+                echo '' >> bootc-upgrade.sh
+                echo "sudo bootc switch '$NEW_IMAGE'" >> bootc-upgrade.sh
+                echo '' >> bootc-upgrade.sh
+                echo 'sudo bootc status' >> bootc-upgrade.sh
+                echo '' >> bootc-upgrade.sh
+                echo 'echo "✅ Bootc upgrade staged. Reboot required to activate."' >> bootc-upgrade.sh
+                echo "echo 'Current staged image: $NEW_IMAGE'" >> bootc-upgrade.sh
+                
+                chmod +x bootc-upgrade.sh
 
                 # Note: In a real scenario, you'd need SSH access configured
                 # This is a placeholder showing the concept
