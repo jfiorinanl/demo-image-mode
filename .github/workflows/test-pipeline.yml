@@ -1,0 +1,371 @@
+name: Test Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  container-tests:
+    name: Container Tests
+    runs-on: ubuntu-latest
+    env:
+      SMDEV_CONTAINER_OFF: 1
+      TEST_IMAGE: "test-rhel-bootc"
+      CONTAINERFILE: Containerfile
+    container:
+      image: registry.access.redhat.com/ubi9/ubi
+      options: --privileged
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install container tools and test dependencies
+      run: |
+        dnf -y install podman buildah skopeo curl jq
+        # Install container-structure-test
+        curl -LO https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
+        chmod +x container-structure-test-linux-amd64
+        mv container-structure-test-linux-amd64 /usr/local/bin/container-structure-test
+
+    - name: Workaround podman auth issue
+      env:
+        auth: "{ \"auths\": {} }"
+      run: |
+        mkdir -p $HOME/.docker
+        echo $auth > $HOME/.docker/config.json
+
+    - name: Log in to Red Hat registry (if available)
+      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+      uses: redhat-actions/podman-login@v1
+      with:
+        registry: registry.redhat.io
+        username: ${{ secrets.SOURCE_REGISTRY_USER }}
+        password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
+        auth_file_path: /run/containers/0/auth.json
+
+    - name: Build test image
+      id: build
+      run: |
+        echo "Building test image..."
+        if buildah bud -t ${{ env.TEST_IMAGE }} -f ${{ env.CONTAINERFILE }} .; then
+          echo "✅ Build successful" >> $GITHUB_STEP_SUMMARY
+          echo "build_success=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Build failed" >> $GITHUB_STEP_SUMMARY
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Create container structure tests
+      run: |
+        cat > container-structure-test.yaml << 'EOF'
+        schemaVersion: 2.0.0
+        
+        fileExistenceTests:
+        - name: 'Essential system files'
+          path: '/etc/passwd'
+          shouldExist: true
+        - name: 'Web root directory'
+          path: '/usr/share/www/html'
+          shouldExist: true
+        - name: 'Index page exists'
+          path: '/usr/share/www/html/index.html'
+          shouldExist: true
+        - name: 'Apache config'
+          path: '/etc/httpd/conf/httpd.conf'
+          shouldExist: true
+        - name: 'Sudoers wheel config'
+          path: '/etc/sudoers.d/wheel-sudo'
+          shouldExist: true
+          
+        fileContentTests:
+        - name: 'Web root configured correctly'
+          path: '/etc/httpd/conf/httpd.conf'
+          expectedContents: ['/usr/share/www']
+        - name: 'Welcome message in index'
+          path: '/usr/share/www/html/index.html'
+          expectedContents: ['Welcome to the bootc-http instance!']
+        - name: 'Wheel sudo configured'
+          path: '/etc/sudoers.d/wheel-sudo'
+          expectedContents: ['%wheel', 'NOPASSWD']
+          
+        commandTests:
+        - name: 'httpd binary exists'
+          command: ['which', 'httpd']
+          exitCode: 0
+        - name: 'tmux is installed'
+          command: ['which', 'tmux']
+          exitCode: 0
+        - name: 'bootc-user exists'
+          command: ['id', 'bootc-user']
+          exitCode: 0
+        - name: 'bootc-user in wheel group'
+          command: ['groups', 'bootc-user']
+          expectedOutput: ['wheel']
+          
+        metadataTest:
+          exposedPorts: ['80']
+        EOF
+
+    - name: Run container structure tests
+      if: steps.build.outputs.build_success == 'true'
+      run: |
+        echo "## Container Structure Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        if container-structure-test test --image ${{ env.TEST_IMAGE }} --config container-structure-test.yaml; then
+          echo "✅ All structure tests passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some structure tests failed" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: container-tests
+    env:
+      SMDEV_CONTAINER_OFF: 1
+      TEST_IMAGE: "integration-test-image"
+      CONTAINERFILE: Containerfile
+    container:
+      image: registry.access.redhat.com/ubi9/ubi
+      options: --privileged
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install tools
+      run: dnf -y install podman buildah curl netcat
+
+    - name: Workaround podman auth issue
+      env:
+        auth: "{ \"auths\": {} }"
+      run: |
+        mkdir -p $HOME/.docker
+        echo $auth > $HOME/.docker/config.json
+
+    - name: Log in to Red Hat registry (if available)
+      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+      uses: redhat-actions/podman-login@v1
+      with:
+        registry: registry.redhat.io
+        username: ${{ secrets.SOURCE_REGISTRY_USER }}
+        password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
+        auth_file_path: /run/containers/0/auth.json
+
+    - name: Build and run container for testing
+      run: |
+        # Build image
+        buildah bud -t ${{ env.TEST_IMAGE }} -f ${{ env.CONTAINERFILE }} .
+        
+        # Run container in background
+        podman run -d --name test-container -p 8080:80 ${{ env.TEST_IMAGE }} /usr/sbin/httpd -D FOREGROUND
+        
+        # Wait for container to be ready
+        sleep 10
+
+    - name: Test HTTP service
+      run: |
+        echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        # Test if HTTP service is responding
+        if curl -f http://localhost:8080/ -o response.html; then
+          echo "✅ HTTP service is responding" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ HTTP service not responding" >> $GITHUB_STEP_SUMMARY
+          podman logs test-container
+          exit 1
+        fi
+        
+        # Check if welcome message is present
+        if grep -q "Welcome to the bootc-http instance" response.html; then
+          echo "✅ Welcome message found" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Welcome message not found" >> $GITHUB_STEP_SUMMARY
+          cat response.html
+          exit 1
+        fi
+
+    - name: Test container health
+      run: |
+        # Check container is still running
+        if podman ps | grep -q test-container; then
+          echo "✅ Container is running stable" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Container stopped unexpectedly" >> $GITHUB_STEP_SUMMARY
+          podman logs test-container
+          exit 1
+        fi
+        
+        # Check processes inside container
+        echo "### Container Processes:" >> $GITHUB_STEP_SUMMARY
+        podman exec test-container ps aux >> $GITHUB_STEP_SUMMARY
+
+    - name: Cleanup
+      if: always()
+      run: |
+        podman stop test-container || true
+        podman rm test-container || true
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: container-tests
+    env:
+      SMDEV_CONTAINER_OFF: 1
+      TEST_IMAGE: "perf-test-image"
+      CONTAINERFILE: Containerfile
+    container:
+      image: registry.access.redhat.com/ubi9/ubi
+      options: --privileged
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install tools
+      run: |
+        dnf -y install podman buildah curl time
+
+    - name: Log in to Red Hat registry (if available)
+      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+      uses: redhat-actions/podman-login@v1
+      with:
+        registry: registry.redhat.io
+        username: ${{ secrets.SOURCE_REGISTRY_USER }}
+        password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
+        auth_file_path: /run/containers/0/auth.json
+
+    - name: Build performance test
+      run: |
+        echo "## Performance Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        # Time the build process
+        echo "### Build Performance:" >> $GITHUB_STEP_SUMMARY
+        start_time=$(date +%s)
+        buildah bud -t ${{ env.TEST_IMAGE }} -f ${{ env.CONTAINERFILE }} .
+        end_time=$(date +%s)
+        build_time=$((end_time - start_time))
+        echo "- Build time: ${build_time} seconds" >> $GITHUB_STEP_SUMMARY
+
+    - name: Test container startup time
+      run: |
+        echo "### Startup Performance:" >> $GITHUB_STEP_SUMMARY
+        
+        # Test container startup time
+        start_time=$(date +%s%3N)  # milliseconds
+        podman run -d --name perf-container -p 8081:80 ${{ env.TEST_IMAGE }} /usr/sbin/httpd -D FOREGROUND
+        
+        # Wait for HTTP to be available
+        timeout=30
+        while [ $timeout -gt 0 ]; do
+          if curl -f http://localhost:8081/ > /dev/null 2>&1; then
+            break
+          fi
+          sleep 1
+          timeout=$((timeout - 1))
+        done
+        
+        end_time=$(date +%s%3N)
+        startup_time=$((end_time - start_time))
+        echo "- Startup time: ${startup_time} ms" >> $GITHUB_STEP_SUMMARY
+        
+        if [ $startup_time -lt 10000 ]; then
+          echo "✅ Fast startup (< 10s)" >> $GITHUB_STEP_SUMMARY
+        elif [ $startup_time -lt 30000 ]; then
+          echo "⚠️ Moderate startup (< 30s)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Slow startup (> 30s)" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Test image size
+      run: |
+        echo "### Image Size:" >> $GITHUB_STEP_SUMMARY
+        
+        size=$(podman images --format "{{.Size}}" ${{ env.TEST_IMAGE }})
+        echo "- Image size: $size" >> $GITHUB_STEP_SUMMARY
+        
+        # Get size in bytes for comparison
+        size_bytes=$(podman images --format "{{.Size}}" --format "table {{.Size}}" ${{ env.TEST_IMAGE }} | tail -1 | sed 's/[^0-9]//g')
+        
+        # Size thresholds (rough estimates)
+        if [ -n "$size_bytes" ] && [ "$size_bytes" -lt 500000000 ]; then  # < 500MB
+          echo "✅ Reasonable size" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ Large image size" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Cleanup performance tests
+      if: always()
+      run: |
+        podman stop perf-container || true
+        podman rm perf-container || true
+
+  multi-arch-test:
+    name: Multi-Architecture Build Test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'  # Skip on PRs to save time
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+      fail-fast: false
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Test multi-arch build
+      run: |
+        echo "## Multi-Architecture Build Test (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
+        
+        # Test build for architecture (dry run)
+        if docker buildx build --platform linux/${{ matrix.arch }} --load -t test-${{ matrix.arch }} -f Containerfile . --dry-run; then
+          echo "✅ Build test passed for ${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Build test failed for ${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [container-tests, integration-tests, performance-tests, multi-arch-test]
+    if: always()
+    
+    steps:
+    - name: Test Results Summary
+      run: |
+        echo "## Test Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Container Tests | ${{ needs.container-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Performance Tests | ${{ needs.performance-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Multi-Arch Tests | ${{ needs.multi-arch-test.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Overall test status
+        if [[ "${{ needs.container-tests.result }}" == "failure" || "${{ needs.integration-tests.result }}" == "failure" ]]; then
+          echo "❌ **Test Pipeline: FAILED** - Critical tests failed" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        elif [[ "${{ needs.performance-tests.result }}" == "failure" || "${{ needs.multi-arch-test.result }}" == "failure" ]]; then
+          echo "⚠️ **Test Pipeline: PASSED with warnings** - Non-critical tests failed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "✅ **Test Pipeline: PASSED** - All tests successful" >> $GITHUB_STEP_SUMMARY
+        fi

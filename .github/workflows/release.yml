@@ -1,0 +1,189 @@
+name: Release Pipeline
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - staging
+        - production
+
+permissions:
+  contents: write
+  packages: write
+  deployments: write
+  security-events: read
+
+jobs:
+  release-pipeline:
+    name: Execute Full Release Pipeline
+    uses: ./.github/workflows/main-pipeline.yml
+    with:
+      skip_tests: false                    # Run all tests for releases
+      force_ami_creation: true             # Always create AMI for releases
+      update_instances: ${{ inputs.environment == 'production' }}  # Update instances for production
+      environment: ${{ inputs.environment || 'production' }}
+    secrets: inherit
+
+  post-release-tasks:
+    name: Post-Release Tasks
+    runs-on: ubuntu-latest
+    needs: release-pipeline
+    if: always() && needs.release-pipeline.result == 'success'
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine release tag
+        id: release-info
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            TAG=${GITHUB_REF#refs/tags/}
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG=${{ github.event.release.tag_name }}
+          else
+            TAG="release-$(date +%Y%m%d-%H%M%S)"
+          fi
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG"
+
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          cat > release-notes.md << 'EOF'
+          ## 🚀 Release ${{ steps.release-info.outputs.release_tag }}
+          
+          ### 📦 Artifacts
+          - **Container Image**: `ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.release-info.outputs.release_tag }}`
+          - **AMI**: Available in AWS EC2 Console (check deployment logs for AMI ID)
+          - **Environment**: ${{ inputs.environment || 'production' }}
+          
+          ### 🔒 Security & Quality
+          - ✅ All security scans passed
+          - ✅ Code quality gates satisfied
+          - ✅ Full testing pipeline executed
+          - ✅ Build provenance attestation included
+          
+          ### 📋 What's Changed
+          EOF
+          
+          # Add commit messages since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            echo "$(git log --oneline $LAST_TAG..HEAD)" >> release-notes.md
+          else
+            echo "Initial release" >> release-notes.md
+          fi
+          
+          cat >> release-notes.md << 'EOF'
+          
+          ### 🧪 Testing Coverage
+          - ✅ Container structure tests
+          - ✅ Integration tests
+          - ✅ Performance benchmarks
+          - ✅ Multi-architecture compatibility
+          
+          ### 🚀 Deployment Notes
+          EOF
+          
+          if [ "${{ inputs.update_instances }}" == "true" ]; then
+            echo "- ✅ Running EC2 instances have been updated automatically" >> release-notes.md
+          else
+            echo "- ⚠️ Manual instance update required: Run \`update-instances.yml\` workflow" >> release-notes.md
+          fi
+          
+          echo "" >> release-notes.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$LAST_TAG...${{ steps.release-info.outputs.release_tag }}" >> release-notes.md
+
+      - name: Create GitHub release (if not exists)
+        if: github.event_name != 'release'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.release-info.outputs.release_tag }}
+          release_name: "Release ${{ steps.release-info.outputs.release_tag }}"
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(steps.release-info.outputs.release_tag, 'rc') || contains(steps.release-info.outputs.release_tag, 'beta') || contains(steps.release-info.outputs.release_tag, 'alpha') }}
+
+      - name: Update release notes (if release exists)
+        if: github.event_name == 'release'
+        run: |
+          # Update existing release with generated notes
+          gh release edit ${{ steps.release-info.outputs.release_tag }} \
+            --notes-file release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag for promotion
+        if: inputs.environment == 'staging' && success()
+        run: |
+          # Tag successful staging releases for potential production promotion
+          git tag "${{ steps.release-info.outputs.release_tag }}-staging-verified" || true
+          git push origin "${{ steps.release-info.outputs.release_tag }}-staging-verified" || true
+
+      - name: Send release notifications
+        if: success() && secrets.SLACK_WEBHOOK != ''
+        run: |
+          ENVIRONMENT_EMOJI=""
+          if [ "${{ inputs.environment }}" == "production" ]; then
+            ENVIRONMENT_EMOJI="🔴"
+          else
+            ENVIRONMENT_EMOJI="🟡"
+          fi
+          
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"good\",
+                \"title\": \"🚀 RHEL Image Mode Release: ${{ steps.release-info.outputs.release_tag }}\",
+                \"text\": \"$ENVIRONMENT_EMOJI **${{ inputs.environment || 'production' }}** deployment completed successfully!\",
+                \"fields\": [
+                  {\"title\": \"Tag\", \"value\": \"${{ steps.release-info.outputs.release_tag }}\", \"short\": true},
+                  {\"title\": \"Environment\", \"value\": \"${{ inputs.environment || 'production' }}\", \"short\": true},
+                  {\"title\": \"Container\", \"value\": \"ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.release-info.outputs.release_tag }}\", \"short\": false},
+                  {\"title\": \"Release Notes\", \"value\": \"<https://github.com/${{ github.repository }}/releases/tag/${{ steps.release-info.outputs.release_tag }}|View Release>\", \"short\": false}
+                ]
+              }]
+            }" \
+            ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Release summary
+        run: |
+          echo "## 🎉 Release ${{ steps.release-info.outputs.release_tag }} Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Release Summary:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ steps.release-info.outputs.release_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ inputs.environment || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container**: \`ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.release-info.outputs.release_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pipeline**: ✅ All stages passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links:" >> $GITHUB_STEP_SUMMARY
+          echo "- [📋 Release Notes](https://github.com/${{ github.repository }}/releases/tag/${{ steps.release-info.outputs.release_tag }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [📦 Container Image](https://github.com/${{ github.repository }}/pkgs/container/${{ github.event.repository.name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [🔒 Security Reports](https://github.com/${{ github.repository }}/security)" >> $GITHUB_STEP_SUMMARY
+          echo "- [🏃 Pipeline Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY

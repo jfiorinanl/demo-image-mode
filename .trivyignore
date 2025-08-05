@@ -1,0 +1,20 @@
+# Trivy ignore file for security scanning exceptions
+# Format: CVE-ID or vulnerability ID
+
+# Known false positives for RHEL base images
+# These are typically patched in RHEL but may show up in vulnerability databases
+
+# Example entries (uncomment and modify as needed):
+# CVE-2023-12345  # Known false positive in RHEL 9.6
+# GHSA-xxxx-xxxx-xxxx  # GitHub Security Advisory exception
+
+# Ignore low severity vulnerabilities in development tools
+# that are not present in production runtime
+# CVE-2023-development-tool
+
+# Base image vulnerabilities that are addressed by Red Hat
+# but may appear in generic vulnerability databases
+# These should be reviewed and updated regularly
+
+# Ignore vulnerabilities in packages that are not used at runtime
+# Example: build-time only dependencies in bootc images

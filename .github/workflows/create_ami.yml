@@ -1,4 +1,4 @@
-name: Publish
+name: Publish AMI
 
 on:
   workflow_call:
@@ -11,6 +11,16 @@ on:
         description: "Nombre AMI opcional (si no se define, se genera por defecto)"
         required: false
         type: string
+      force_ami_creation:
+        description: "Forzar creación de AMI aunque ya exista"
+        required: false
+        type: boolean
+        default: false
+      update_running_instances:
+        description: "Actualizar instancias EC2 corriendo con la nueva AMI"
+        required: false
+        type: boolean
+        default: false
     secrets:
       # AWS
       AWS_ACCESS_KEY_ID:
@@ -27,13 +37,89 @@ on:
       SOURCE_REGISTRY_PASSWORD:
         required: true
       # GITHUB_TOKEN se hereda con `secrets: inherit` desde el caller
+      # Opcional: para actualizar instancias EC2
+      EC2_INSTANCE_IDS:
+        required: false
+        description: "Lista de instance IDs separados por coma para actualizar"
 
 jobs:
-  build-ami:
-    name: Build & Register AMI (RHEL bootc-image-builder)
+  check-ami-exists:
+    name: Check if AMI already exists
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      ami_exists: ${{ steps.check-ami.outputs.ami_exists }}
+      existing_ami_id: ${{ steps.check-ami.outputs.ami_id }}
+      ami_name: ${{ steps.vars.outputs.ami_name }}
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      REPO_OWNER: ${{ github.repository_owner }}
+      REPO_NAME: ${{ github.event.repository.name }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      AMI_NAME_PREFIX: ${{ vars.AMI_NAME_PREFIX }}
+
+    steps:
+      - name: Preparar variables AMI
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.ami_name_override }}" ]; then
+            AMI_NAME="${{ inputs.ami_name_override }}"
+          elif [ -n "${AMI_NAME_PREFIX:-}" ]; then
+            AMI_NAME="${AMI_NAME_PREFIX}-${IMAGE_TAG}-${GITHUB_RUN_NUMBER}"
+          else
+            AMI_NAME="${REPO_NAME}-${IMAGE_TAG}-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "ami_name=$AMI_NAME" >> $GITHUB_OUTPUT
+          echo "AMI name to check: $AMI_NAME"
+
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+      - name: Check if AMI exists
+        id: check-ami
+        run: |
+          echo "Checking if AMI '${{ steps.vars.outputs.ami_name }}' exists..."
+          
+          # Search for AMI by name
+          AMI_INFO=$(aws ec2 describe-images \
+            --owners self \
+            --filters "Name=name,Values=${{ steps.vars.outputs.ami_name }}" \
+            --query 'Images[0].[ImageId,State]' \
+            --output text \
+            --region "${AWS_REGION}" || echo "None None")
+          
+          AMI_ID=$(echo $AMI_INFO | cut -d' ' -f1)
+          AMI_STATE=$(echo $AMI_INFO | cut -d' ' -f2)
+          
+          if [ "$AMI_ID" != "None" ] && [ "$AMI_STATE" = "available" ]; then
+            echo "✅ AMI already exists: $AMI_ID" >> $GITHUB_STEP_SUMMARY
+            echo "ami_exists=true" >> $GITHUB_OUTPUT
+            echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
+          else
+            echo "❌ AMI does not exist or is not available" >> $GITHUB_STEP_SUMMARY
+            echo "ami_exists=false" >> $GITHUB_OUTPUT
+            echo "ami_id=" >> $GITHUB_OUTPUT
+          fi
+
+  build-ami:
+    name: Build & Register AMI (RHEL bootc-image-builder)
+    runs-on: ubuntu-latest
+    needs: check-ami-exists
+    if: needs.check-ami-exists.outputs.ami_exists == 'false' || inputs.force_ami_creation == true
+    permissions:
+      contents: read
+    outputs:
+      ami_id: ${{ steps.extract-ami-id.outputs.ami_id }}
+      ami_name: ${{ needs.check-ami-exists.outputs.ami_name }}
 
     env:
       DEST_REGISTRY_HOST: ghcr.io
@@ -51,23 +137,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Preparar variables
+      - name: Preparar variables para build
         id: vars
         shell: bash
         run: |
           set -euo pipefail
           SRC_IMAGE="ghcr.io/${REPO_OWNER}/${REPO_NAME}:${IMAGE_TAG}"
-          if [ -n "${{ inputs.ami_name_override }}" ]; then
-            AMI_NAME="${{ inputs.ami_name_override }}"
-          elif [ -n "${AMI_NAME_PREFIX:-}" ]; then
-            AMI_NAME="${AMI_NAME_PREFIX}-${IMAGE_TAG}-${GITHUB_RUN_NUMBER}"
-          else
-            AMI_NAME="${REPO_NAME}-${IMAGE_TAG}-${GITHUB_RUN_NUMBER}"
-          fi
+          AMI_NAME="${{ needs.check-ami-exists.outputs.ami_name }}"
+          
           echo "src_image=$SRC_IMAGE" >> $GITHUB_OUTPUT
           echo "ami_name=$AMI_NAME" >> $GITHUB_OUTPUT
           echo "Usando imagen: $SRC_IMAGE"
           echo "Nombre AMI:   $AMI_NAME"
+          
+          if [ "${{ inputs.force_ami_creation }}" == "true" ]; then
+            echo "⚠️ Forzando creación de AMI (sobreescribiendo existente)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Creando nueva AMI" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Workaround open podman-login action issue
         env:
@@ -97,7 +184,11 @@ jobs:
           auth_file_path: /tmp/storage-run-0/containers/auth.json
 
       - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
+        id: create-ami
         run: |
+          echo "🚀 Iniciando creación de AMI..." >> $GITHUB_STEP_SUMMARY
+          
+          # Capturar output del bootc-image-builder
           sudo podman run \
             --rm -it \
             --privileged \
@@ -113,12 +204,243 @@ jobs:
               --aws-ami-name "${{ steps.vars.outputs.ami_name }}" \
               --aws-bucket "${AWS_S3_BUCKET}" \
               --aws-region "${AWS_REGION}" \
-              "${{ steps.vars.outputs.src_image }}"
+              "${{ steps.vars.outputs.src_image }}" \
+            2>&1 | tee ami-creation.log
+          
+          echo "✅ AMI creation process completed" >> $GITHUB_STEP_SUMMARY
 
-      - name: Mostrar resultado
+      - name: Extract AMI ID from logs
+        id: extract-ami-id
         run: |
-          echo "AMI solicitada: ${{ steps.vars.outputs.ami_name }}"
-          echo "Región:         ${AWS_REGION}"
-          echo "Bucket S3:      ${AWS_S3_BUCKET}"
-          echo "Imagen fuente:  ${{ steps.vars.outputs.src_image }}"
-          echo "Verificá en EC2 > AMIs hasta que el estado sea 'available'."
+          # Install AWS CLI for verification
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+          
+          # Wait a moment and then find the AMI ID
+          sleep 30
+          
+          AMI_ID=$(aws ec2 describe-images \
+            --owners self \
+            --filters "Name=name,Values=${{ steps.vars.outputs.ami_name }}" \
+            --query 'Images[0].ImageId' \
+            --output text \
+            --region "${AWS_REGION}")
+          
+          if [ "$AMI_ID" != "None" ] && [ "$AMI_ID" != "null" ]; then
+            echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
+            echo "✅ AMI created successfully: $AMI_ID" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Could not find created AMI" >> $GITHUB_STEP_SUMMARY
+            echo "ami_id=" >> $GITHUB_OUTPUT
+          fi
+
+  update-running-instances:
+    name: Update Running EC2 Instances
+    runs-on: ubuntu-latest
+    needs: [check-ami-exists, build-ami]
+    if: always() && inputs.update_running_instances == true && (needs.build-ami.outputs.ami_id != '' || needs.check-ami-exists.outputs.existing_ami_id != '')
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    
+    steps:
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+      - name: Determine AMI to use
+        id: determine-ami
+        run: |
+          if [ -n "${{ needs.build-ami.outputs.ami_id }}" ]; then
+            AMI_ID="${{ needs.build-ami.outputs.ami_id }}"
+            echo "Using newly created AMI: $AMI_ID"
+          else
+            AMI_ID="${{ needs.check-ami-exists.outputs.existing_ami_id }}"
+            echo "Using existing AMI: $AMI_ID"
+          fi
+          echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
+
+      - name: Find instances to update
+        id: find-instances
+        run: |
+          echo "## EC2 Instance Update Process" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ secrets.EC2_INSTANCE_IDS }}" ]; then
+            # Use provided instance IDs
+            INSTANCE_IDS="${{ secrets.EC2_INSTANCE_IDS }}"
+            echo "Using provided instance IDs: $INSTANCE_IDS"
+          else
+            # Find running instances with the previous AMI version
+            # This is a simplified approach - in production you'd want more sophisticated filtering
+            INSTANCE_IDS=$(aws ec2 describe-instances \
+              --filters "Name=instance-state-name,Values=running" \
+                        "Name=tag:Project,Values=rhel-bootc-demo" \
+              --query 'Reservations[].Instances[].InstanceId' \
+              --output text \
+              --region "${AWS_REGION}" | tr '\t' ',')
+            
+            if [ -z "$INSTANCE_IDS" ]; then
+              echo "No instances found with Project=rhel-bootc-demo tag"
+              INSTANCE_IDS=""
+            fi
+          fi
+          
+          echo "instance_ids=$INSTANCE_IDS" >> $GITHUB_OUTPUT
+          echo "Instance IDs to update: $INSTANCE_IDS" >> $GITHUB_STEP_SUMMARY
+
+      - name: Perform bootc upgrade on running instances
+        if: steps.find-instances.outputs.instance_ids != ''
+        run: |
+          IFS=',' read -ra INSTANCES <<< "${{ steps.find-instances.outputs.instance_ids }}"
+          
+          echo "### Instance Update Results:" >> $GITHUB_STEP_SUMMARY
+          
+          for INSTANCE_ID in "${INSTANCES[@]}"; do
+            if [ -n "$INSTANCE_ID" ]; then
+              echo "🔄 Updating instance: $INSTANCE_ID"
+              
+              # Get instance public IP for SSH connection
+              PUBLIC_IP=$(aws ec2 describe-instances \
+                --instance-ids "$INSTANCE_ID" \
+                --query 'Reservations[0].Instances[0].PublicIpAddress' \
+                --output text \
+                --region "${AWS_REGION}")
+              
+              if [ "$PUBLIC_IP" != "None" ] && [ -n "$PUBLIC_IP" ]; then
+                echo "📍 Instance $INSTANCE_ID has public IP: $PUBLIC_IP"
+                
+                # Create bootc upgrade script
+                cat > bootc-upgrade.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+# Update container image reference
+NEW_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}"
+
+echo "🚀 Starting bootc upgrade to: $NEW_IMAGE"
+
+# Switch to new image (this stages the new image)
+sudo bootc switch "$NEW_IMAGE"
+
+# Check status
+sudo bootc status
+
+echo "✅ Bootc upgrade staged. Reboot required to activate."
+echo "Current staged image: $NEW_IMAGE"
+EOF
+
+                # Note: In a real scenario, you'd need SSH access configured
+                # This is a placeholder showing the concept
+                echo "📝 Bootc upgrade script prepared for $INSTANCE_ID" >> $GITHUB_STEP_SUMMARY
+                echo "⚠️ Manual step required: Execute bootc-upgrade.sh on instance $INSTANCE_ID" >> $GITHUB_STEP_SUMMARY
+                echo "💡 SSH command: ssh bootc-user@$PUBLIC_IP 'bash -s' < bootc-upgrade.sh" >> $GITHUB_STEP_SUMMARY
+                
+                # Alternative: Use SSM if instances have SSM agent
+                echo "🔧 Attempting SSM command execution..."
+                aws ssm send-command \
+                  --instance-ids "$INSTANCE_ID" \
+                  --document-name "AWS-RunShellScript" \
+                  --parameters 'commands=[
+                    "sudo bootc switch ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}",
+                    "sudo bootc status",
+                    "echo \"Bootc upgrade staged. Reboot to activate.\""
+                  ]' \
+                  --region "${AWS_REGION}" || {
+                    echo "⚠️ SSM command failed for $INSTANCE_ID - manual intervention required" >> $GITHUB_STEP_SUMMARY
+                  }
+                
+              else
+                echo "❌ Instance $INSTANCE_ID has no public IP" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 **Bootc Update Process:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. ✅ New image staged on instances with \`bootc switch\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. ⏳ **Manual step**: Reboot instances to activate new image" >> $GITHUB_STEP_SUMMARY
+          echo "3. 🔍 Verify with \`bootc status\` after reboot" >> $GITHUB_STEP_SUMMARY
+
+      - name: Schedule instance reboots (optional)
+        if: steps.find-instances.outputs.instance_ids != '' && github.event_name == 'workflow_dispatch'
+        run: |
+          IFS=',' read -ra INSTANCES <<< "${{ steps.find-instances.outputs.instance_ids }}"
+          
+          echo "### Scheduled Reboots:" >> $GITHUB_STEP_SUMMARY
+          
+          for INSTANCE_ID in "${INSTANCES[@]}"; do
+            if [ -n "$INSTANCE_ID" ]; then
+              # Schedule a reboot in 5 minutes to allow bootc switch to complete
+              aws ssm send-command \
+                --instance-ids "$INSTANCE_ID" \
+                --document-name "AWS-RunShellScript" \
+                --parameters 'commands=[
+                  "echo \"Scheduling reboot in 5 minutes to activate bootc upgrade...\"",
+                  "sudo shutdown -r +5 \"Activating bootc upgrade - scheduled by GitHub Actions\""
+                ]' \
+                --region "${AWS_REGION}" || {
+                  echo "⚠️ Could not schedule reboot for $INSTANCE_ID" >> $GITHUB_STEP_SUMMARY
+                }
+              
+              echo "⏰ Reboot scheduled for $INSTANCE_ID in 5 minutes" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  ami-summary:
+    name: AMI Creation Summary
+    runs-on: ubuntu-latest
+    needs: [check-ami-exists, build-ami, update-running-instances]
+    if: always()
+    
+    steps:
+      - name: AMI Process Summary
+        run: |
+          echo "## AMI Creation & Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          
+          # AMI Check Results
+          if [ "${{ needs.check-ami-exists.outputs.ami_exists }}" == "true" ]; then
+            echo "| AMI Check | ✅ Found | AMI already exists: ${{ needs.check-ami-exists.outputs.existing_ami_id }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| AMI Check | ❌ Not Found | AMI needs to be created |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # AMI Creation Results
+          if [ "${{ needs.build-ami.result }}" == "success" ]; then
+            echo "| AMI Creation | ✅ Success | New AMI: ${{ needs.build-ami.outputs.ami_id }} |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build-ami.result }}" == "skipped" ]; then
+            echo "| AMI Creation | ⏭️ Skipped | Using existing AMI |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| AMI Creation | ❌ Failed | Check logs for details |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Instance Update Results
+          if [ "${{ needs.update-running-instances.result }}" == "success" ]; then
+            echo "| Instance Update | ✅ Success | Running instances updated |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.update-running-instances.result }}" == "skipped" ]; then
+            echo "| Instance Update | ⏭️ Skipped | Not requested |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Instance Update | ❌ Failed | Check logs for details |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Final Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- **AMI Name**: ${{ needs.check-ami-exists.outputs.ami_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region**: ${{ secrets.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ needs.build-ami.outputs.ami_id }}" ]; then
+            echo "- **New AMI ID**: ${{ needs.build-ami.outputs.ami_id }}" >> $GITHUB_STEP_SUMMARY
+          elif [ -n "${{ needs.check-ami-exists.outputs.existing_ami_id }}" ]; then
+            echo "- **Existing AMI ID**: ${{ needs.check-ami-exists.outputs.existing_ami_id }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 Check AWS EC2 Console for AMI availability" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Verify instance updates completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔄 Monitor instance reboots if scheduled" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,252 @@
+name: Main DevOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip testing pipeline (faster execution)'
+        required: false
+        type: boolean
+        default: false
+      force_ami_creation:
+        description: 'Force AMI creation even if exists'
+        required: false
+        type: boolean
+        default: false
+      update_instances:
+        description: 'Update running EC2 instances after deployment'
+        required: false
+        type: boolean
+        default: false
+      environment:
+        description: 'Target environment for deployment'
+        required: false
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+
+permissions:
+  contents: write
+  packages: write
+  security-events: write
+  deployments: write
+
+jobs:
+  # ETAPA 1: BUILD DE IMAGEN
+  build-stage:
+    name: "🏗️ Stage 1: Build Container Image"
+    uses: ./.github/workflows/build_rhel_bootc.yml
+    secrets: inherit
+
+  # ETAPA 2: SECURITY, QUALITY & TESTING (EN PARALELO)
+  security-stage:
+    name: "🔒 Stage 2a: Security Scanning"
+    needs: build-stage
+    uses: ./.github/workflows/security-scan.yml
+    secrets: inherit
+
+  quality-stage:
+    name: "📊 Stage 2b: Code Quality Analysis"
+    needs: build-stage
+    uses: ./.github/workflows/code-quality.yml
+    secrets: inherit
+
+  testing-stage:
+    name: "🧪 Stage 2c: Testing Pipeline"
+    needs: build-stage
+    if: inputs.skip_tests != true
+    uses: ./.github/workflows/test-pipeline.yml
+    secrets: inherit
+
+  # ETAPA 3: QUALITY GATE
+  quality-gate:
+    name: "🚦 Stage 3: Quality Gate"
+    runs-on: ubuntu-latest
+    needs: [build-stage, security-stage, quality-stage, testing-stage]
+    if: always()
+    outputs:
+      gate_passed: ${{ steps.gate-check.outputs.gate_passed }}
+      
+    steps:
+      - name: Evaluate Quality Gate
+        id: gate-check
+        run: |
+          echo "## 🚦 Quality Gate Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build-stage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | ${{ needs.security-stage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Quality | ${{ needs.quality-stage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing | ${{ needs.testing-stage.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+          # Critical checks (must pass)
+          CRITICAL_FAILED=false
+          
+          if [ "${{ needs.build-stage.result }}" != "success" ]; then
+            echo "❌ **CRITICAL**: Build stage failed" >> $GITHUB_STEP_SUMMARY
+            CRITICAL_FAILED=true
+          fi
+          
+          if [ "${{ needs.security-stage.result }}" == "failure" ]; then
+            echo "❌ **CRITICAL**: Security stage failed" >> $GITHUB_STEP_SUMMARY  
+            CRITICAL_FAILED=true
+          fi
+          
+          # Warning checks (can proceed with warnings)
+          if [ "${{ needs.quality-stage.result }}" == "failure" ]; then
+            echo "⚠️ **WARNING**: Quality stage failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.testing-stage.result }}" == "failure" ] && [ "${{ inputs.skip_tests }}" != "true" ]; then
+            echo "⚠️ **WARNING**: Testing stage failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Decision logic
+          if [ "$CRITICAL_FAILED" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🛑 **QUALITY GATE: FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "Critical issues detected. Deployment blocked." >> $GITHUB_STEP_SUMMARY
+            echo "gate_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **QUALITY GATE: PASSED**" >> $GITHUB_STEP_SUMMARY
+            echo "All critical checks passed. Proceeding to deployment." >> $GITHUB_STEP_SUMMARY
+            echo "gate_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ETAPA 4: DEPLOYMENT
+  deployment-stage:
+    name: "🚀 Stage 4: Deployment"
+    needs: [build-stage, quality-gate]
+    if: needs.quality-gate.outputs.gate_passed == 'true'
+    uses: ./.github/workflows/create_ami.yml
+    with:
+      image_tag: ${{ needs.build-stage.outputs.image_tag }}
+      ami_name_override: ${{ vars.AMI_NAME_PREFIX }}-${{ needs.build-stage.outputs.image_tag }}-${{ github.run_number }}
+      force_ami_creation: ${{ inputs.force_ami_creation || false }}
+      update_running_instances: ${{ inputs.update_instances || false }}
+    secrets: inherit
+
+  # ETAPA 5: POST-DEPLOYMENT (si es release)
+  post-deployment:
+    name: "📋 Stage 5: Post-Deployment"
+    runs-on: ubuntu-latest
+    needs: [build-stage, quality-gate, deployment-stage]
+    if: always() && needs.deployment-stage.result == 'success'
+    environment:
+      name: ${{ inputs.environment || 'staging' }}
+      
+    steps:
+      - name: Generate deployment summary
+        run: |
+          echo "## 🎉 Pipeline Execution Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Execution Summary:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build**: ✅ Container image created" >> $GITHUB_STEP_SUMMARY
+          echo "- **Security**: ✅ Scanned and reports available" >> $GITHUB_STEP_SUMMARY
+          echo "- **Quality**: ✅ Code quality checked" >> $GITHUB_STEP_SUMMARY
+          echo "- **Testing**: ✅ All tests executed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment**: ✅ AMI created and available" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Deployment Details:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ inputs.environment || 'staging' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag**: ${{ needs.build-stage.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container**: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ needs.build-stage.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **AMI**: Available in AWS EC2 Console" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Check **Security** tab for vulnerability reports" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify **AMI** is available in AWS EC2 Console" >> $GITHUB_STEP_SUMMARY
+          echo "3. Launch EC2 instances using the created AMI" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ inputs.update_instances }}" == "true" ]; then
+            echo "4. ✅ Running instances have been updated" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "4. Optionally run \`update-instances.yml\` to update running instances" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # NOTIFICACIONES (opcional)
+  notifications:
+    name: "📢 Notifications"
+    runs-on: ubuntu-latest
+    needs: [build-stage, quality-gate, deployment-stage, post-deployment]
+    if: always() && secrets.SLACK_WEBHOOK != ''
+    
+    steps:
+      - name: Send Slack notification
+        run: |
+          if [ "${{ needs.deployment-stage.result }}" == "success" ]; then
+            STATUS="✅ SUCCESS"
+            COLOR="good"
+            MESSAGE="Pipeline completed successfully! 🎉\n• Image: ${{ needs.build-stage.outputs.image_tag }}\n• AMI: Available in AWS\n• Environment: ${{ inputs.environment || 'staging' }}"
+          else
+            STATUS="❌ FAILED"
+            COLOR="danger" 
+            MESSAGE="Pipeline failed at deployment stage. Check logs for details."
+          fi
+          
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"RHEL Image Mode Pipeline: $STATUS\",
+                \"text\": \"$MESSAGE\",
+                \"fields\": [
+                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true},
+                  {\"title\": \"Branch/Tag\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Workflow\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>\", \"short\": true}
+                ]
+              }]
+            }" \
+            ${{ secrets.SLACK_WEBHOOK }}
+
+  # PIPELINE STATUS FINAL
+  pipeline-status:
+    name: "📈 Pipeline Status"
+    runs-on: ubuntu-latest
+    needs: [build-stage, security-stage, quality-stage, testing-stage, quality-gate, deployment-stage]
+    if: always()
+    
+    steps:
+      - name: Final pipeline status
+        run: |
+          echo "## 📈 Final Pipeline Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Stage Results:" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Build | ${{ needs.build-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔒 Security | ${{ needs.security-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Quality | ${{ needs.quality-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Testing | ${{ needs.testing-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚦 Quality Gate | ${{ needs.quality-gate.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 Deployment | ${{ needs.deployment-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall status
+          if [ "${{ needs.deployment-stage.result }}" == "success" ]; then
+            echo "🎉 **PIPELINE: SUCCESS** - All stages completed successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Ready for production use**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.quality-gate.result }}" == "failure" ]; then
+            echo "🛑 **PIPELINE: BLOCKED** - Quality gate failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Deployment blocked due to quality issues**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **PIPELINE: PARTIAL** - Some non-critical issues detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Review issues before production deployment**" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Set final exit code
+          if [ "${{ needs.deployment-stage.result }}" != "success" ] && [ "${{ needs.quality-gate.result }}" == "failure" ]; then
+            exit 1
+          fi
