@@ -316,6 +316,21 @@ jobs:
           echo "📋 Building AMI from: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
           echo "📋 AMI Name: ${{ steps.vars.outputs.ami_name }}" >> $GITHUB_STEP_SUMMARY
           
+          # Pull the source image first (bootc-image-builder no longer pulls automatically)
+          echo "🔄 Pulling source image: $SRC_IMAGE"
+          if sudo podman pull "$SRC_IMAGE"; then
+            echo "✅ Source image pulled successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to pull source image: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🔧 Troubleshooting:" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Check image exists**: Verify the image was built and pushed in previous workflow" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Check registry access**: Ensure GitHub Container Registry credentials are valid" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Check tag**: Verify the image tag '$IMAGE_TAG' exists" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Manual check**: Visit https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/pkgs/container/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
           # Run bootc-image-builder with proper authentication and storage mounts (rootful)
           set +e  # Don't exit on error, we want to capture it
           sudo podman run \
