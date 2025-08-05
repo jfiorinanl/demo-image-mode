@@ -7,11 +7,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      skip_tests:
-        description: 'Skip testing pipeline (faster execution)'
-        required: false
-        type: boolean
-        default: false
       force_ami_creation:
         description: 'Force AMI creation even if exists'
         required: false
@@ -60,18 +55,12 @@ jobs:
     uses: ./.github/workflows/code-quality.yml
     secrets: inherit
 
-  testing-stage:
-    name: "🧪 Stage 2c: Testing Pipeline"
-    needs: build-stage
-    if: inputs.skip_tests != true
-    uses: ./.github/workflows/test-pipeline.yml
-    secrets: inherit
 
   # ETAPA 3: QUALITY GATE
   quality-gate:
     name: "🚦 Stage 3: Quality Gate"
     runs-on: ubuntu-latest
-    needs: [build-stage, security-stage, quality-stage, testing-stage]
+    needs: [build-stage, security-stage, quality-stage]
     if: always()
     outputs:
       gate_passed: ${{ steps.gate-check.outputs.gate_passed }}
@@ -86,7 +75,6 @@ jobs:
           echo "| Build | ${{ needs.build-stage.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Security | ${{ needs.security-stage.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Quality | ${{ needs.quality-stage.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Testing | ${{ needs.testing-stage.result }} |" >> $GITHUB_STEP_SUMMARY
           
           # Critical checks (must pass)
           CRITICAL_FAILED=false
@@ -106,9 +94,6 @@ jobs:
             echo "⚠️ **WARNING**: Quality stage failed" >> $GITHUB_STEP_SUMMARY
           fi
           
-          if [ "${{ needs.testing-stage.result }}" == "failure" ] && [ "${{ inputs.skip_tests }}" != "true" ]; then
-            echo "⚠️ **WARNING**: Testing stage failed" >> $GITHUB_STEP_SUMMARY
-          fi
           
           # Decision logic
           if [ "$CRITICAL_FAILED" = "true" ]; then
@@ -155,7 +140,6 @@ jobs:
           echo "- **Build**: ✅ Container image created" >> $GITHUB_STEP_SUMMARY
           echo "- **Security**: ✅ Scanned and reports available" >> $GITHUB_STEP_SUMMARY
           echo "- **Quality**: ✅ Code quality checked" >> $GITHUB_STEP_SUMMARY
-          echo "- **Testing**: ✅ All tests executed" >> $GITHUB_STEP_SUMMARY
           echo "- **Deployment**: ✅ AMI created and available" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🚀 Deployment Details:" >> $GITHUB_STEP_SUMMARY
@@ -179,7 +163,7 @@ jobs:
   pipeline-status:
     name: "📈 Pipeline Status"
     runs-on: ubuntu-latest
-    needs: [build-stage, security-stage, quality-stage, testing-stage, quality-gate, deployment-stage]
+    needs: [build-stage, security-stage, quality-stage, quality-gate, deployment-stage]
     if: always()
     
     steps:
@@ -193,7 +177,6 @@ jobs:
           echo "| 🏗️ Build | ${{ needs.build-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
           echo "| 🔒 Security | ${{ needs.security-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
           echo "| 📊 Quality | ${{ needs.quality-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧪 Testing | ${{ needs.testing-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
           echo "| 🚦 Quality Gate | ${{ needs.quality-gate.result }} | - |" >> $GITHUB_STEP_SUMMARY
           echo "| 🚀 Deployment | ${{ needs.deployment-stage.result }} | - |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

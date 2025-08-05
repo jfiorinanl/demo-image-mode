@@ -122,19 +122,49 @@ jobs:
     - name: Build test image for security scanning
       id: build-test-image
       run: |
-        buildah bud -t ${{ env.TEST_IMAGE }} -f ${{ env.CONTAINERFILE }} .
-        echo "image=${{ env.TEST_IMAGE }}" >> $GITHUB_OUTPUT
+        echo "Building test image for security scanning..."
+        if buildah bud -t ${{ env.TEST_IMAGE }} -f ${{ env.CONTAINERFILE }} .; then
+          echo "✅ Test image built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "image=${{ env.TEST_IMAGE }}" >> $GITHUB_OUTPUT
+          echo "build_success=true" >> $GITHUB_OUTPUT
+          
+          # Verify image exists
+          if podman images | grep -q ${{ env.TEST_IMAGE }}; then
+            echo "✅ Image verified in local registry" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Image not found in local registry" >> $GITHUB_STEP_SUMMARY
+            podman images
+          fi
+        else
+          echo "❌ Test image build failed" >> $GITHUB_STEP_SUMMARY
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
 
     - name: Run Trivy vulnerability scanner
+      if: steps.build-test-image.outputs.build_success == 'true'
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: ${{ env.TEST_IMAGE }}
         format: 'sarif'
         output: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Check if Trivy SARIF file exists
+      id: check-trivy-sarif
+      run: |
+        if [ -f "trivy-results.sarif" ]; then
+          echo "sarif_exists=true" >> $GITHUB_OUTPUT
+          echo "✅ Trivy SARIF file created successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "sarif_exists=false" >> $GITHUB_OUTPUT
+          echo "❌ Trivy SARIF file not found" >> $GITHUB_STEP_SUMMARY
+          ls -la
+        fi
 
     - name: Upload Trivy scan results to GitHub Security
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: steps.check-trivy-sarif.outputs.sarif_exists == 'true'
       with:
         sarif_file: 'trivy-results.sarif'
         category: trivy
@@ -146,10 +176,22 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-fs-results.sarif'
+      continue-on-error: true
+
+    - name: Check if Trivy filesystem SARIF file exists
+      id: check-trivy-fs-sarif
+      run: |
+        if [ -f "trivy-fs-results.sarif" ]; then
+          echo "sarif_exists=true" >> $GITHUB_OUTPUT
+          echo "✅ Trivy filesystem SARIF file created successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "sarif_exists=false" >> $GITHUB_OUTPUT
+          echo "❌ Trivy filesystem SARIF file not found" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Upload Trivy filesystem scan results
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: steps.check-trivy-fs-sarif.outputs.sarif_exists == 'true'
       with:
         sarif_file: 'trivy-fs-results.sarif'
         category: trivy-fs

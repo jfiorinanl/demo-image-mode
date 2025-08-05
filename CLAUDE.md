@@ -31,7 +31,6 @@ El objetivo es demostrar a clientes las capacidades avanzadas de desarrollo mode
 2. **Stage 2 (Paralelo)**:
    - 2a. `security-scan.yml` - Security scanning completo con SARIF  
    - 2b. `code-quality.yml` - Quality gates y linting
-   - 2c. `test-pipeline.yml` - Testing completo de contenedores
 3. **Stage 3**: Quality Gate - Evaluación de resultados críticos
 4. **Stage 4**: `create_ami.yml` - Creación inteligente de AMI + actualización de instancias
 5. **Stage 5**: Post-deployment - Tareas finales y notificaciones
@@ -62,7 +61,6 @@ gh workflow run main-pipeline.yml
 
 # Pipeline con opciones específicas
 gh workflow run main-pipeline.yml \
-  -f skip_tests=false \
   -f force_ami_creation=true \
   -f update_instances=true \
   -f environment=staging
@@ -78,7 +76,6 @@ gh workflow run release.yml \
 # Workflows individuales (para testing/debugging)
 gh workflow run security-scan.yml
 gh workflow run code-quality.yml
-gh workflow run test-pipeline.yml
 
 # Actualizar instancias EC2 manualmente
 gh workflow run update-instances.yml \
@@ -143,7 +140,6 @@ npm run security:scan
 - ✅ **Security scanning completo** (CodeQL, Trivy, Hadolint, Snyk)
 - ✅ **PR validation** con fast checks
 - ✅ **Code quality gates** (SonarCloud, linting)
-- ✅ **Testing pipeline** (structure, integration, performance)
 - ✅ **Release automation** con deployment staging/production
 - ✅ **Dependabot** para updates automáticos
 
@@ -168,8 +164,8 @@ npm run security:scan
 - **Manual workflow**: `update-instances.yml` para actualizaciones on-demand
 
 ### Pipeline Orquestado
-- **Sequential execution**: Workflows ejecutan en orden definido (build → test → deploy)
-- **Parallel optimization**: Security/Quality/Testing en paralelo para eficiencia
+- **Sequential execution**: Workflows ejecutan en orden definido (build → security/quality → deploy)
+- **Parallel optimization**: Security/Quality en paralelo para eficiencia
 - **Quality gates**: Evaluación crítica antes de deployment
 - **Conditional deployment**: Solo despliega si pasa quality gate
 - **Smart workflows**: Pueden ejecutarse individualmente o como parte del pipeline
