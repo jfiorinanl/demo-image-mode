@@ -11,8 +11,8 @@ on:
       - '*'
 
 jobs:
-  rhel-bootc-image-build:
-    name: 
+  Build:
+    name: Build and Push
     runs-on: ubuntu-latest
     env:
       SMDEV_CONTAINER_OFF: 1
