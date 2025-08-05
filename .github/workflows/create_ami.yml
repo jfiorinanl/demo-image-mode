@@ -188,7 +188,7 @@ jobs:
             --privileged \
             --pull=newer \
             --security-opt label=type:unconfined_t \
-            -v /home/runner/.docker/config.json:/run/containers/0/auth.json \
+            -v /tmp/storage-run-0/containers/auth.json:/run/containers/0/auth.json \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
@@ -240,12 +240,6 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
     
     steps:
-      - name: Install AWS CLI
-        run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
-
       - name: Determine AMI to use
         id: determine-ami
         run: |
