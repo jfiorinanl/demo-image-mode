@@ -163,7 +163,6 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Run Snyk to check for vulnerabilities
-      if: ${{ secrets.SNYK_TOKEN != '' }}
       uses: snyk/actions/node@master
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -173,7 +172,7 @@ jobs:
 
     - name: Upload Snyk results to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v3
-      if: ${{ secrets.SNYK_TOKEN != '' && always() }}
+      if: always()
       with:
         sarif_file: snyk-results.sarif
         category: snyk
