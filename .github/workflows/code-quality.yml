@@ -111,6 +111,17 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Cache ShellCheck
+      id: cache-shellcheck
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/bin/shellcheck
+          ~/.cabal
+        key: shellcheck-${{ runner.os }}-v1
+        restore-keys: |
+          shellcheck-${{ runner.os }}-
+
     - name: Find shell scripts
       id: find-scripts
       run: |
@@ -132,8 +143,13 @@ jobs:
     - name: Run ShellCheck
       if: steps.find-scripts.outputs.scripts_found == 'true'
       run: |
-        # Install ShellCheck
-        sudo apt-get update && sudo apt-get install -y shellcheck
+        # Install ShellCheck if not cached
+        if [ ! -f "/usr/bin/shellcheck" ] || [ "${{ steps.cache-shellcheck.outputs.cache-hit }}" != "true" ]; then
+          echo "Installing ShellCheck..."
+          sudo apt-get update && sudo apt-get install -y shellcheck
+        else
+          echo "✅ ShellCheck found in cache"
+        fi
         
         echo "## ShellCheck Results" >> $GITHUB_STEP_SUMMARY
         
@@ -154,6 +170,19 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Cache Python packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: pip-yaml-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          pip-yaml-${{ runner.os }}-
 
     - name: Install yamllint
       run: pip install yamllint

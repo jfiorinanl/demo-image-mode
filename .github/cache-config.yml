@@ -1,0 +1,101 @@
+# GitHub Actions Cache Configuration
+# Configuración centralizada para optimización de cache en workflows
+
+cache_strategies:
+  # Cache de herramientas de contenedor
+  container_tools:
+    paths:
+      - /usr/bin/podman
+      - /usr/bin/buildah  
+      - /usr/bin/skopeo
+      - /usr/libexec/podman
+      - /usr/share/containers
+    key_pattern: "container-tools-{workflow}-{os}-{os_hash}"
+    ttl_days: 7
+    
+  # Cache de imágenes de contenedor
+  container_images:
+    paths:
+      - ~/.local/share/containers
+      - /var/lib/containers
+    key_pattern: "container-images-{workflow}-{os}-{containerfile_hash}-{sha}"
+    restore_keys:
+      - "container-images-{workflow}-{os}-{containerfile_hash}-"
+      - "container-images-{workflow}-{os}-"
+    ttl_days: 3
+
+  # Cache de herramientas de seguridad
+  security_tools:
+    trivy:
+      paths:
+        - ~/.cache/trivy
+        - /usr/local/bin/trivy
+      key_pattern: "trivy-cache-{os}-{containerfile_hash}-{date}"
+      ttl_days: 1
+    
+  # Cache de herramientas de calidad
+  quality_tools:
+    shellcheck:
+      paths:
+        - /usr/bin/shellcheck
+        - ~/.cabal
+      key_pattern: "shellcheck-{os}-v1"
+      ttl_days: 30
+      
+    yamllint:
+      paths:
+        - ~/.cache/pip
+      key_pattern: "pip-yaml-{os}-{requirements_hash}"
+      ttl_days: 7
+
+  # Cache de herramientas de validación
+  validation_tools:
+    actionlint:
+      paths:
+        - ./actionlint
+      key_pattern: "actionlint-{os}-v1"
+      ttl_days: 30
+      
+    container_structure_test:
+      paths:
+        - /usr/local/bin/container-structure-test
+      key_pattern: "container-structure-test-{os}-v1"
+      ttl_days: 30
+
+# Optimizaciones por tipo de cambio
+conditional_execution:
+  # Solo ejecutar security scan si cambian archivos relevantes
+  security_scan_triggers:
+    - "Containerfile"
+    - ".github/workflows/security-scan.yml"
+    - "**/*.sh"
+    - "**/*.dockerfile"
+    
+  # Solo ejecutar code quality si cambian archivos relevantes  
+  code_quality_triggers:
+    - "**/*.yml"
+    - "**/*.yaml"
+    - "**/*.sh"
+    - "**/*.md"
+    - "Containerfile"
+    - ".github/workflows/code-quality.yml"
+    
+  # Siempre ejecutar build en cambios de Containerfile
+  build_triggers:
+    - "Containerfile"
+    - "web/**/*"
+    - ".github/workflows/build_rhel_bootc.yml"
+
+# Configuraciones por workflow
+workflow_optimization:
+  main_pipeline:
+    parallel_jobs: true
+    cache_sharing: true
+    
+  pr_checks:
+    fast_fail: true
+    conditional_execution: true
+    
+  security_scan:
+    incremental_scanning: true
+    result_caching: true

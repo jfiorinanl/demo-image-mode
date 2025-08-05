@@ -12,13 +12,9 @@ ignored:
 
 # Override some rules for RHEL/bootc specific patterns
 override:
-  # Allow dnf instead of yum
-  - error: DL3033
-    reason: "dnf is preferred over yum in RHEL 9+"
-  
-  # Allow specific patterns for bootc images
-  - error: DL3059
-    reason: "Multiple consecutive RUN instructions are acceptable for bootc layer optimization"
+  error:
+    - DL3033  # Allow dnf instead of yum in RHEL 9+
+    - DL3059  # Multiple consecutive RUN instructions acceptable for bootc
 
 # Trusted registries for base images
 trustedRegistries:
@@ -26,24 +22,3 @@ trustedRegistries:
   - "registry.access.redhat.com"
   - "quay.io/redhat"
 
-# Label schema validation
-labelSchema:
-  # Required labels for container metadata
-  maintainer:
-    required: false
-    description: "Container maintainer information"
-  
-  version:
-    required: false
-    description: "Container version"
-    
-  description:
-    required: false
-    description: "Container description"
-
-# Allowed instructions (all standard Docker instructions)
-# This can be restricted if needed for security compliance
-allowedInstructions: []
-
-# Strict label key format (optional)
-strictLabels: false

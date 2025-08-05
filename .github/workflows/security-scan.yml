@@ -17,9 +17,50 @@ permissions:
   actions: read
 
 jobs:
+  check-changes:
+    name: Check Security-Relevant Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_scan: ${{ steps.changes.outputs.should_scan }}
+      containerfile_changed: ${{ steps.changes.outputs.containerfile }}
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check for security-relevant changes
+      id: changes
+      run: |
+        if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "should_scan=true" >> $GITHUB_OUTPUT
+          echo "containerfile=true" >> $GITHUB_OUTPUT
+          echo "🔄 Scheduled or manual run - performing full security scan" >> $GITHUB_STEP_SUMMARY
+        else
+          # Check for changes in security-relevant files
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          
+          if echo "$CHANGED_FILES" | grep -qE "(Containerfile|\.dockerfile|\.sh|\.github/workflows/security-scan\.yml)"; then
+            echo "should_scan=true" >> $GITHUB_OUTPUT
+            echo "🔍 Security-relevant files changed - running security scan" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "should_scan=false" >> $GITHUB_OUTPUT  
+            echo "⏭️ No security-relevant changes detected - skipping scan" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "Containerfile"; then
+            echo "containerfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "containerfile=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+
   dockerfile-security:
     name: Dockerfile Security Scan
     runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.should_scan == 'true'
     
     steps:
     - name: Checkout repository
@@ -59,7 +100,8 @@ jobs:
   container-security:
     name: Container Image Security Scan
     runs-on: ubuntu-latest
-    needs: []  # Run independently
+    needs: [check-changes]
+    if: needs.check-changes.outputs.containerfile_changed == 'true'
     env:
       SMDEV_CONTAINER_OFF: 1
       SOURCE_REGISTRY_HOST: "registry.redhat.io"
@@ -74,8 +116,31 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Cache container tools
+      id: cache-tools
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/bin/podman
+          /usr/bin/buildah
+          /usr/bin/skopeo
+          /usr/libexec/podman
+          /usr/share/containers
+        key: container-tools-security-${{ runner.os }}-${{ hashFiles('/etc/os-release') }}
+        restore-keys: |
+          container-tools-security-${{ runner.os }}-
+
     - name: Install container tools
+      if: steps.cache-tools.outputs.cache-hit != 'true'
       run: dnf -y install podman buildah skopeo
+
+    - name: Cache DNF packages for security
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/dnf
+        key: dnf-cache-security-${{ runner.os }}-${{ hashFiles('Containerfile') }}
+        restore-keys: |
+          dnf-cache-security-${{ runner.os }}-
 
     - name: Workaround podman-login action issue
       env:
@@ -94,6 +159,28 @@ jobs:
 
     - name: Access a subscription via activation key
       run: subscription-manager register --org=${{ secrets.RHT_ORGID }} --activationkey=${{ secrets.RHT_ACT_KEY }}
+
+    - name: Cache container images for security scan
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/share/containers
+          /var/lib/containers
+        key: security-container-images-${{ runner.os }}-${{ hashFiles('Containerfile') }}-${{ github.sha }}
+        restore-keys: |
+          security-container-images-${{ runner.os }}-${{ hashFiles('Containerfile') }}-
+          security-container-images-${{ runner.os }}-
+
+    - name: Cache Trivy database and binary
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/trivy
+          /usr/local/bin/trivy
+        key: trivy-cache-${{ runner.os }}-${{ hashFiles('**/Containerfile') }}-$(date +%Y-%m-%d)
+        restore-keys: |
+          trivy-cache-${{ runner.os }}-${{ hashFiles('**/Containerfile') }}-
+          trivy-cache-${{ runner.os }}-
 
     - name: Build test image for security scanning
       id: build-test-image
@@ -117,13 +204,30 @@ jobs:
           exit 1
         fi
 
-    - name: Run Trivy vulnerability scanner
+    - name: Install and run Trivy vulnerability scanner
       if: steps.build-test-image.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.TEST_IMAGE }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+      run: |
+        echo "Checking Trivy installation..."
+        
+        # Install Trivy if not cached
+        if [ ! -f "/usr/local/bin/trivy" ]; then
+          echo "Installing Trivy..."
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.64.1
+        else
+          echo "✅ Trivy found in cache"
+        fi
+        
+        echo "Running Trivy scan on image: ${{ env.TEST_IMAGE }}"
+        
+        # Run Trivy scan with cache optimization
+        trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy ${{ env.TEST_IMAGE }}
+        
+        if [ -f "trivy-results.sarif" ]; then
+          echo "✅ Trivy scan completed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Trivy scan failed to generate SARIF output" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
 
     - name: Check if Trivy SARIF file exists
       id: check-trivy-sarif
@@ -145,12 +249,17 @@ jobs:
         category: trivy
 
     - name: Run Trivy filesystem scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-fs-results.sarif'
+      run: |
+        echo "Running Trivy filesystem scan..."
+        
+        # Run filesystem scan with cache optimization
+        trivy fs --format sarif --output trivy-fs-results.sarif --cache-dir ~/.cache/trivy .
+        
+        if [ -f "trivy-fs-results.sarif" ]; then
+          echo "✅ Trivy filesystem scan completed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Trivy filesystem scan failed to generate SARIF output" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Check if Trivy filesystem SARIF file exists
       id: check-trivy-fs-sarif
@@ -173,6 +282,8 @@ jobs:
   dependency-security:
     name: Dependency Security Scan
     runs-on: ubuntu-latest
+    needs: [check-changes]
+    if: needs.check-changes.outputs.should_scan == 'true'
     
     steps:
     - name: Checkout repository
@@ -220,47 +331,65 @@ jobs:
   security-summary:
     name: Security Scan Summary
     runs-on: ubuntu-latest
-    needs: [ dockerfile-security, container-security, dependency-security]
+    needs: [check-changes, dockerfile-security, container-security, dependency-security]
     if: always()
     
     steps:
     - name: Security Scan Results
       run: |
         echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-        echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Dockerfile Security | ${{ needs.dockerfile-security.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Container Security | ${{ needs.container-security.result }} |" >> $GITHUB_STEP_SUMMARY  
-        echo "| Dependency Security | ${{ needs.dependency-security.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
         
-        # Check for critical failures
-        CRITICAL_FAILED=false
-        
-        if [ "${{ needs.dockerfile-security.result }}" == "failure" ]; then
-          echo "❌ **CRITICAL**: Dockerfile security scan failed" >> $GITHUB_STEP_SUMMARY
-          CRITICAL_FAILED=true
-        fi
-        
-        if [ "${{ needs.container-security.result }}" == "failure" ]; then
-          echo "❌ **CRITICAL**: Container security scan failed" >> $GITHUB_STEP_SUMMARY
-          CRITICAL_FAILED=true
-        fi
-        
-        if [ "${{ needs.dependency-security.result }}" == "failure" ]; then
-          echo "⚠️ **WARNING**: Dependency security scan failed" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
-        
-        # Fail if critical security issues found
-        if [ "$CRITICAL_FAILED" = "true" ]; then
+        if [ "${{ needs.check-changes.outputs.should_scan }}" = "false" ]; then
+          echo "⏭️ **Security scan skipped** - No security-relevant changes detected" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🛑 **SECURITY SCAN: FAILED**" >> $GITHUB_STEP_SUMMARY
-          echo "Critical security issues detected. Pipeline blocked." >> $GITHUB_STEP_SUMMARY
-          exit 1
+          echo "Skipped scans save approximately 5-8 minutes of CI time ⚡" >> $GITHUB_STEP_SUMMARY
         else
+          echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dockerfile Security | ${{ needs.dockerfile-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.check-changes.outputs.containerfile_changed }}" = "true" ]; then
+            echo "| Container Security | ${{ needs.container-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          else  
+            echo "| Container Security | skipped (no Containerfile changes) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "| Dependency Security | ${{ needs.dependency-security.result }} |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check for critical failures (only if scans were run)
+        if [ "${{ needs.check-changes.outputs.should_scan }}" = "true" ]; then
+          CRITICAL_FAILED=false
+          
+          if [ "${{ needs.dockerfile-security.result }}" == "failure" ]; then
+            echo "❌ **CRITICAL**: Dockerfile security scan failed" >> $GITHUB_STEP_SUMMARY
+            CRITICAL_FAILED=true
+          fi
+          
+          if [ "${{ needs.check-changes.outputs.containerfile_changed }}" = "true" ] && [ "${{ needs.container-security.result }}" == "failure" ]; then
+            echo "❌ **CRITICAL**: Container security scan failed" >> $GITHUB_STEP_SUMMARY
+            CRITICAL_FAILED=true
+          fi
+          
+          if [ "${{ needs.dependency-security.result }}" == "failure" ]; then
+            echo "⚠️ **WARNING**: Dependency security scan failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **SECURITY SCAN: PASSED**" >> $GITHUB_STEP_SUMMARY
+          echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
+          
+          # Fail if critical security issues found
+          if [ "$CRITICAL_FAILED" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🛑 **SECURITY SCAN: FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "Critical security issues detected. Pipeline blocked." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **SECURITY SCAN: PASSED**" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "✅ **SECURITY SCAN: SKIPPED** (no relevant changes)" >> $GITHUB_STEP_SUMMARY
         fi

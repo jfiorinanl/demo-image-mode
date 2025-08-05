@@ -66,8 +66,31 @@ jobs:
           echo "Generated version.json:"
           cat web/version.json
 
+      - name: Cache container tools
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/bin/podman
+            /usr/bin/buildah
+            /usr/bin/skopeo
+            /usr/libexec/podman
+            /usr/share/containers
+          key: container-tools-${{ runner.os }}-${{ hashFiles('/etc/os-release') }}
+          restore-keys: |
+            container-tools-${{ runner.os }}-
+
       - name: Get container tools in UBI builder
+        if: steps.cache-tools.outputs.cache-hit != 'true'
         run: dnf -y install podman buildah skopeo
+
+      - name: Cache DNF packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/dnf
+          key: dnf-cache-${{ runner.os }}-${{ hashFiles('Containerfile') }}
+          restore-keys: |
+            dnf-cache-${{ runner.os }}-
 
       - name: Access a subscription via activation key
         run: subscription-manager register --org=${{ secrets.RHT_ORGID }} --activationkey=${{ secrets.RHT_ACT_KEY }}
@@ -86,6 +109,24 @@ jobs:
           username: ${{ secrets.SOURCE_REGISTRY_USER }}
           password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
           auth_file_path: /run/containers/0/auth.json
+
+      - name: Cache container images and layers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/containers
+            /var/lib/containers
+          key: container-images-${{ runner.os }}-${{ hashFiles('Containerfile') }}-${{ github.sha }}
+          restore-keys: |
+            container-images-${{ runner.os }}-${{ hashFiles('Containerfile') }}-
+            container-images-${{ runner.os }}-
+
+      - name: Pre-pull base image for cache
+        run: |
+          echo "Pre-pulling base image for layer cache optimization..."
+          BASE_IMAGE=$(grep "^FROM" Containerfile | head -1 | awk '{print $2}')
+          echo "Base image: $BASE_IMAGE"
+          podman pull $BASE_IMAGE || echo "Base image pull failed, continuing with build"
 
       - name: Use buildah bud to create the image
         id: build-image

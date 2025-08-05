@@ -108,12 +108,26 @@ jobs:
         format: tty
         failure-threshold: warning
 
+    - name: Cache container-structure-test
+      id: cache-cst
+      uses: actions/cache@v4
+      with:
+        path: /usr/local/bin/container-structure-test
+        key: container-structure-test-${{ runner.os }}-v1
+        restore-keys: |
+          container-structure-test-${{ runner.os }}-
+
     - name: Container structure test
       run: |
-        # Install container-structure-test
-        curl -LO https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
-        chmod +x container-structure-test-linux-amd64
-        sudo mv container-structure-test-linux-amd64 /usr/local/bin/container-structure-test
+        # Install container-structure-test if not cached
+        if [ ! -f "/usr/local/bin/container-structure-test" ]; then
+          echo "Installing container-structure-test..."
+          curl -LO https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
+          chmod +x container-structure-test-linux-amd64
+          sudo mv container-structure-test-linux-amd64 /usr/local/bin/container-structure-test
+        else
+          echo "✅ container-structure-test found in cache"
+        fi
         
         # Create basic structure test config
         cat > container-test.yaml << 'EOF'
@@ -152,10 +166,24 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Cache actionlint
+      id: cache-actionlint
+      uses: actions/cache@v4
+      with:
+        path: ./actionlint
+        key: actionlint-${{ runner.os }}-v1
+        restore-keys: |
+          actionlint-${{ runner.os }}-
+
     - name: Validate GitHub Actions workflows
       run: |
-        # Install actionlint
-        bash <(curl https://raw.githubusercontent.com/rhymond/actionlint/main/scripts/download-actionlint.bash)
+        # Install actionlint if not cached
+        if [ ! -f "./actionlint" ]; then
+          echo "Installing actionlint..."
+          bash <(curl https://raw.githubusercontent.com/rhymond/actionlint/main/scripts/download-actionlint.bash)
+        else
+          echo "✅ actionlint found in cache"
+        fi
         
         # Validate all workflow files
         ./actionlint .github/workflows/*.yml
@@ -176,8 +204,33 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Cache container tools for PR
+      id: cache-tools-pr
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/bin/podman
+          /usr/bin/buildah
+          /usr/libexec/podman
+          /usr/share/containers
+        key: container-tools-pr-${{ runner.os }}-${{ hashFiles('/etc/os-release') }}
+        restore-keys: |
+          container-tools-pr-${{ runner.os }}-
+
     - name: Install container tools
+      if: steps.cache-tools-pr.outputs.cache-hit != 'true'
       run: dnf -y install podman buildah
+
+    - name: Cache container images for PR build
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/share/containers
+          /var/lib/containers
+        key: pr-container-images-${{ runner.os }}-${{ hashFiles('Containerfile') }}-${{ github.event.pull_request.head.sha }}
+        restore-keys: |
+          pr-container-images-${{ runner.os }}-${{ hashFiles('Containerfile') }}-
+          pr-container-images-${{ runner.os }}-
 
     - name: Test build (without registry access)
       run: |
