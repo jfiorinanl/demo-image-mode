@@ -314,23 +314,24 @@ jobs:
                 echo "📍 Instance $INSTANCE_ID has public IP: $PUBLIC_IP"
                 
                 # Create bootc upgrade script
-                cat > bootc-upgrade.sh << 'EOF'
+                NEW_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}"
+                cat > bootc-upgrade.sh << EOF
 #!/bin/bash
 set -euo pipefail
 
 # Update container image reference
-NEW_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}"
+NEW_IMAGE="$NEW_IMAGE"
 
-echo "🚀 Starting bootc upgrade to: $NEW_IMAGE"
+echo "🚀 Starting bootc upgrade to: \$NEW_IMAGE"
 
 # Switch to new image (this stages the new image)
-sudo bootc switch "$NEW_IMAGE"
+sudo bootc switch "\$NEW_IMAGE"
 
 # Check status
 sudo bootc status
 
 echo "✅ Bootc upgrade staged. Reboot required to activate."
-echo "Current staged image: $NEW_IMAGE"
+echo "Current staged image: \$NEW_IMAGE"
 EOF
 
                 # Note: In a real scenario, you'd need SSH access configured
@@ -341,14 +342,15 @@ EOF
                 
                 # Alternative: Use SSM if instances have SSM agent
                 echo "🔧 Attempting SSM command execution..."
+                SSM_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}"
                 aws ssm send-command \
                   --instance-ids "$INSTANCE_ID" \
                   --document-name "AWS-RunShellScript" \
-                  --parameters 'commands=[
-                    "sudo bootc switch ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ inputs.image_tag }}",
-                    "sudo bootc status",
-                    "echo \"Bootc upgrade staged. Reboot to activate.\""
-                  ]' \
+                  --parameters "commands=[
+                    \"sudo bootc switch $SSM_IMAGE\",
+                    \"sudo bootc status\",
+                    \"echo 'Bootc upgrade staged. Reboot to activate.'\"
+                  ]" \
                   --region "${AWS_REGION}" || {
                     echo "⚠️ SSM command failed for $INSTANCE_ID - manual intervention required" >> $GITHUB_STEP_SUMMARY
                   }
