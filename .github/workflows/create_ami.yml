@@ -316,12 +316,13 @@ jobs:
           echo "📋 Building AMI from: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
           echo "📋 AMI Name: ${{ steps.vars.outputs.ami_name }}" >> $GITHUB_STEP_SUMMARY
           
-          # Run bootc-image-builder with proper authentication (rootful)
+          # Run bootc-image-builder with proper authentication and storage mounts (rootful)
           set +e  # Don't exit on error, we want to capture it
           sudo podman run \
             --rm \
             --privileged \
             --security-opt label=type:unconfined_t \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
             -v /tmp/container-auth/auth.json:/run/containers/0/auth.json:ro \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
