@@ -89,6 +89,17 @@ jobs:
             CRITICAL_FAILED=true
           fi
           
+          # Also fail on cancelled or skipped critical stages
+          if [ "${{ needs.build-stage.result }}" == "cancelled" ] || [ "${{ needs.build-stage.result }}" == "skipped" ]; then
+            echo "❌ **CRITICAL**: Build stage was cancelled or skipped" >> $GITHUB_STEP_SUMMARY
+            CRITICAL_FAILED=true
+          fi
+          
+          if [ "${{ needs.security-stage.result }}" == "cancelled" ] || [ "${{ needs.security-stage.result }}" == "skipped" ]; then
+            echo "❌ **CRITICAL**: Security stage was cancelled or skipped" >> $GITHUB_STEP_SUMMARY  
+            CRITICAL_FAILED=true
+          fi
+          
           # Warning checks (can proceed with warnings)
           if [ "${{ needs.quality-stage.result }}" == "failure" ]; then
             echo "⚠️ **WARNING**: Quality stage failed" >> $GITHUB_STEP_SUMMARY
@@ -196,7 +207,30 @@ jobs:
             echo "⚠️ **Review issues before production deployment**" >> $GITHUB_STEP_SUMMARY
           fi
           
-          # Set final exit code
-          if [ "${{ needs.deployment-stage.result }}" != "success" ] && [ "${{ needs.quality-gate.result }}" == "failure" ]; then
+          # Set final exit code based on critical failures
+          PIPELINE_FAILED=false
+          
+          # Check if deployment failed
+          if [ "${{ needs.deployment-stage.result }}" == "failure" ]; then
+            echo "🛑 **PIPELINE FAILED**: Deployment stage failed" >> $GITHUB_STEP_SUMMARY
+            PIPELINE_FAILED=true
+          fi
+          
+          # Check if quality gate failed (this should block deployment)
+          if [ "${{ needs.quality-gate.result }}" == "failure" ]; then
+            echo "🛑 **PIPELINE FAILED**: Quality gate failed" >> $GITHUB_STEP_SUMMARY
+            PIPELINE_FAILED=true
+          fi
+          
+          # Check if deployment was skipped due to quality gate failure
+          if [ "${{ needs.deployment-stage.result }}" == "skipped" ] && [ "${{ needs.quality-gate.outputs.gate_passed }}" != "true" ]; then
+            echo "🛑 **PIPELINE FAILED**: Deployment skipped due to quality gate failure" >> $GITHUB_STEP_SUMMARY
+            PIPELINE_FAILED=true
+          fi
+          
+          # Exit with error if pipeline failed
+          if [ "$PIPELINE_FAILED" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **PIPELINE EXECUTION FAILED** - Critical issues must be resolved" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi

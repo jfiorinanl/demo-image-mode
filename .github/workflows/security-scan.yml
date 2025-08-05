@@ -31,7 +31,7 @@ jobs:
         dockerfile: Containerfile
         format: sarif
         output-file: hadolint-results.sarif
-        no-fail: true
+        no-fail: false
 
     - name: Upload Hadolint SARIF
       uses: github/codeql-action/upload-sarif@v3
@@ -47,7 +47,7 @@ jobs:
         framework: dockerfile
         output_format: sarif
         output_file_path: checkov-results.sarif
-        soft_fail: true
+        soft_fail: false
 
     - name: Upload Checkov SARIF
       uses: github/codeql-action/upload-sarif@v3
@@ -124,7 +124,6 @@ jobs:
         image-ref: ${{ env.TEST_IMAGE }}
         format: 'sarif'
         output: 'trivy-results.sarif'
-      continue-on-error: true
 
     - name: Check if Trivy SARIF file exists
       id: check-trivy-sarif
@@ -152,7 +151,6 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-fs-results.sarif'
-      continue-on-error: true
 
     - name: Check if Trivy filesystem SARIF file exists
       id: check-trivy-fs-sarif
@@ -235,4 +233,34 @@ jobs:
         echo "| Container Security | ${{ needs.container-security.result }} |" >> $GITHUB_STEP_SUMMARY  
         echo "| Dependency Security | ${{ needs.dependency-security.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check for critical failures
+        CRITICAL_FAILED=false
+        
+        if [ "${{ needs.dockerfile-security.result }}" == "failure" ]; then
+          echo "❌ **CRITICAL**: Dockerfile security scan failed" >> $GITHUB_STEP_SUMMARY
+          CRITICAL_FAILED=true
+        fi
+        
+        if [ "${{ needs.container-security.result }}" == "failure" ]; then
+          echo "❌ **CRITICAL**: Container security scan failed" >> $GITHUB_STEP_SUMMARY
+          CRITICAL_FAILED=true
+        fi
+        
+        if [ "${{ needs.dependency-security.result }}" == "failure" ]; then
+          echo "⚠️ **WARNING**: Dependency security scan failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
+        
+        # Fail if critical security issues found
+        if [ "$CRITICAL_FAILED" = "true" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🛑 **SECURITY SCAN: FAILED**" >> $GITHUB_STEP_SUMMARY
+          echo "Critical security issues detected. Pipeline blocked." >> $GITHUB_STEP_SUMMARY
+          exit 1
+        else
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **SECURITY SCAN: PASSED**" >> $GITHUB_STEP_SUMMARY
+        fi

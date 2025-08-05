@@ -150,45 +150,116 @@ jobs:
             echo "✅ Creando nueva AMI" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Workaround open podman-login action issue
-        env:
-          auth: "{ \"auths\": {} }"
+      - name: Install Podman and container tools
         run: |
-          mkdir -p $HOME/.docker
-          echo $auth > $HOME/.docker/config.json
+          # Update package lists
+          sudo apt-get update
+          
+          # Install podman from official repository
+          sudo apt-get install -y podman containernetworking-plugins
+          
+          # Verify installation
+          podman --version
+          echo "✅ Podman installed successfully" >> $GITHUB_STEP_SUMMARY
 
-      - name: Login a registry.redhat.io (rootful)
+      - name: Setup container storage and authentication
         run: |
-          sudo mkdir -p /tmp/auth
+          # Create directories for container storage
+          mkdir -p $HOME/.config/containers
+          mkdir -p $HOME/.local/share/containers
+          
+          # Setup containers.conf for rootless mode
+          cat > $HOME/.config/containers/containers.conf << 'EOF'
+[containers]
+default_ulimits = []
+pids_limit = 0
 
-      - name: Log in to the GitHub Container registry
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          auth_file_path: /tmp/storage-run-0/containers/auth.json
+[engine]
+cgroup_manager = "systemd"
+events_logger = "journald"
+runtime = "crun"
+EOF
 
-      - name: Log in to the RHT terms based registry
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: registry.redhat.io
-          username: ${{ secrets.SOURCE_REGISTRY_USER }}
-          password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
-          auth_file_path: /tmp/storage-run-0/containers/auth.json
+      - name: Login to registries
+        run: |
+          echo "Logging into GitHub Container Registry..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          echo "Logging into Red Hat Registry..."
+          echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | podman login registry.redhat.io -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin
+          
+          echo "✅ Successfully logged into both registries" >> $GITHUB_STEP_SUMMARY
 
-      - name: Crear y registrar AMI con RHEL bootc-image-builder (driver vfs)
+      - name: Validate credentials and test authentication
+        run: |
+          if [ -z "${{ secrets.SOURCE_REGISTRY_USER }}" ] || [ -z "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" ]; then
+            echo "❌ Red Hat registry credentials missing" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🔧 How to fix this:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Go to your GitHub repository Settings → Secrets and variables → Actions" >> $GITHUB_STEP_SUMMARY
+            echo "2. Add these secrets:" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`SOURCE_REGISTRY_USER\`: Your Red Hat Customer Portal username" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`SOURCE_REGISTRY_PASSWORD\`: Your Red Hat Customer Portal password" >> $GITHUB_STEP_SUMMARY
+            echo "3. Make sure you have a valid Red Hat subscription" >> $GITHUB_STEP_SUMMARY
+            echo "4. Test your credentials at: https://access.redhat.com/RegistryAuthentication" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          # Test authentication by trying to get login info
+          echo "Testing Red Hat registry authentication..."
+          if podman login --get-login registry.redhat.io >/dev/null 2>&1; then
+            echo "✅ Red Hat registry authentication successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Red Hat registry authentication failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🔧 Troubleshooting Steps:" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Check credentials**: Verify SOURCE_REGISTRY_USER and SOURCE_REGISTRY_PASSWORD in GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Verify subscription**: Ensure you have an active Red Hat subscription" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Test manually**: Try \`podman login registry.redhat.io\` with your credentials" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Check account**: Visit https://access.redhat.com/management/subscriptions" >> $GITHUB_STEP_SUMMARY
+            echo "5. **Password vs Token**: Use your Customer Portal password, not an API token" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Pull bootc-image-builder
+        run: |
+          echo "Pulling bootc-image-builder..."
+          if podman pull registry.redhat.io/rhel9/bootc-image-builder:latest; then
+            echo "✅ Successfully pulled bootc-image-builder" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to pull bootc-image-builder - authentication failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 💡 Most Common Causes:" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Invalid Credentials**: Check that your Red Hat Customer Portal username/password are correct" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Expired Subscription**: Ensure your Red Hat subscription is active" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Account Issues**: Your account may need to accept new terms at https://access.redhat.com" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Wrong Registry**: Make sure you're using registry.redhat.io, not other Red Hat registries" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Prepare authentication for bootc-image-builder
+        run: |
+          # Create a temporary directory for container auth
+          mkdir -p /tmp/container-auth
+          
+          # Copy the podman auth file to a location the container can access
+          cp $HOME/.config/containers/auth.json /tmp/container-auth/auth.json
+          chmod 644 /tmp/container-auth/auth.json
+          
+          echo "✅ Authentication files prepared for container" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create AMI with bootc-image-builder
         id: create-ami
         run: |
           echo "🚀 Iniciando creación de AMI..." >> $GITHUB_STEP_SUMMARY
           
-          # Capturar output del bootc-image-builder
-          sudo podman run \
-            --rm -it \
+          # Run bootc-image-builder with proper authentication
+          set +e  # Don't exit on error, we want to capture it
+          podman run \
+            --rm \
             --privileged \
-            --pull=newer \
             --security-opt label=type:unconfined_t \
-            -v /tmp/storage-run-0/containers/auth.json:/run/containers/0/auth.json \
+            -v /tmp/container-auth/auth.json:/run/containers/0/auth.json:ro \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             -e AWS_REGION="${AWS_REGION}" \
@@ -201,11 +272,24 @@ jobs:
               "${{ steps.vars.outputs.src_image }}" \
             2>&1 | tee ami-creation.log
           
-          echo "✅ AMI creation process completed" >> $GITHUB_STEP_SUMMARY
+          EXIT_CODE=$?
+          set -e  # Re-enable exit on error
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ AMI creation process completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ AMI creation failed with exit code $EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+            echo "Check ami-creation.log for details" >> $GITHUB_STEP_SUMMARY
+            cat ami-creation.log
+            exit $EXIT_CODE
+          fi
 
       - name: Extract AMI ID from logs
         id: extract-ami-id
         run: |
+          # Wait a moment for AWS to register the AMI
+          sleep 10
+          
           AMI_ID=$(aws ec2 describe-images \
             --owners self \
             --filters "Name=name,Values=${{ steps.vars.outputs.ami_name }}" \
@@ -213,12 +297,15 @@ jobs:
             --output text \
             --region "${AWS_REGION}")
           
-          if [ "$AMI_ID" != "None" ] && [ "$AMI_ID" != "null" ]; then
+          if [ "$AMI_ID" != "None" ] && [ "$AMI_ID" != "null" ] && [ -n "$AMI_ID" ]; then
             echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
             echo "✅ AMI created successfully: $AMI_ID" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Could not find created AMI" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Could not find created AMI after creation process" >> $GITHUB_STEP_SUMMARY
+            echo "AMI name searched: ${{ steps.vars.outputs.ami_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "This indicates the AMI creation failed" >> $GITHUB_STEP_SUMMARY
             echo "ami_id=" >> $GITHUB_OUTPUT
+            exit 1
           fi
 
   update-running-instances:
