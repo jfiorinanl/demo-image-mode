@@ -1,0 +1,23 @@
+{
+  "version": "${VERSION}",
+  "build_sha": "${BUILD_SHA}",
+  "build_date": "${BUILD_DATE}",
+  "build_time": "${BUILD_TIME}",
+  "branch": "${BRANCH}",
+  "image_tag": "${IMAGE_TAG}",
+  "registry": "${REGISTRY}",
+  "environment": "${ENVIRONMENT}",
+  "pipeline_run": "${PIPELINE_RUN}",
+  "container_info": {
+    "base_image": "registry.redhat.io/rhel9/rhel-bootc:9.6",
+    "user": "bootc-user",
+    "service": "httpd",
+    "port": "80"
+  },
+  "build_info": {
+    "workflow": "${GITHUB_WORKFLOW}",
+    "run_id": "${GITHUB_RUN_ID}",
+    "run_number": "${GITHUB_RUN_NUMBER}",
+    "actor": "${GITHUB_ACTOR}"
+  }
+}

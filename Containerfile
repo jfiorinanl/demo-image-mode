@@ -18,9 +18,11 @@ dnf -y install httpd && dnf clean all
 systemctl enable httpd
 mv /var/www /usr/share/www
 sed -ie 's,/var/www,/usr/share/www,' /etc/httpd/conf/httpd.conf
-echo "Welcome to the bootc-http instance!" > /usr/share/www/html/index.html
 
 EORUN
+
+#copy NetLabs demo web assets
+COPY web/ /usr/share/www/html/
 
 #clean up caches in the image and lint the container
 RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig -rf

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetLabs - RHEL 10 Image Mode Demo</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Google Fonts - Titillium Web (NetLabs style) -->
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="css/netlabs.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <div class="brand-logo me-2"></div>
+                <span class="fw-bold">NetLabs</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">Features</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#pipeline">Pipeline</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#info">Info</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center min-vh-100">
+                <div class="col-lg-6">
+                    <div class="hero-content">
+                        <h1 class="display-4 fw-bold mb-4">
+                            RHEL 10 <span class="text-primary">Image Mode</span>
+                            <br>DevOps Demo
+                        </h1>
+                        <p class="lead mb-4">
+                            Demostración completa de capacidades DevOps modernas con RHEL 10 image mode, 
+                            incluyendo pipelines automatizados, security scanning y deployment inteligente.
+                        </p>
+                        <div class="d-flex flex-wrap gap-3 mb-4">
+                            <span class="badge bg-primary fs-6 px-3 py-2">
+                                <i class="bi bi-gear-fill me-1"></i>
+                                Bootc Technology
+                            </span>
+                            <span class="badge bg-success fs-6 px-3 py-2">
+                                <i class="bi bi-shield-check me-1"></i>
+                                Security Integrated
+                            </span>
+                            <span class="badge bg-info fs-6 px-3 py-2">
+                                <i class="bi bi-cloud-arrow-up me-1"></i>
+                                CI/CD Pipeline
+                            </span>
+                        </div>
+                        <div class="version-info p-3 bg-light rounded">
+                            <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Información de la Imagen</h6>
+                            <div id="version-display">
+                                <div class="placeholder-glow">
+                                    <span class="placeholder col-8"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="hero-visual">
+                        <div class="container-visual">
+                            <div class="container-box">
+                                <div class="container-header">
+                                    <div class="container-status running"></div>
+                                    <span class="fw-bold">RHEL Bootc Container</span>
+                                </div>
+                                <div class="container-body">
+                                    <div class="code-line"><span class="text-success">✓</span> Image: registry.redhat.io/rhel9/rhel-bootc:9.6</div>
+                                    <div class="code-line"><span class="text-success">✓</span> Status: Running</div>
+                                    <div class="code-line"><span class="text-success">✓</span> Port: 80:80</div>
+                                    <div class="code-line"><span class="text-primary">→</span> User: bootc-user</div>
+                                    <div class="code-line"><span class="text-primary">→</span> Service: httpd active</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-5 bg-light">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-5 fw-bold">Capacidades DevOps Completas</h2>
+                    <p class="lead">Pipeline automatizado con las mejores prácticas de desarrollo moderno</p>
+                </div>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="bi bi-cpu"></i>
+                        </div>
+                        <h4>Bootc Technology</h4>
+                        <p>Imágenes inmutables basadas en contenedores que permiten actualizaciones atómicas y rollbacks seguros.</p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="bi bi-shield-shaded"></i>
+                        </div>
+                        <h4>Security Scanning</h4>
+                        <p>Análisis completo de vulnerabilidades con CodeQL, Trivy, Hadolint y Snyk integrados en el pipeline.</p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="bi bi-diagram-3"></i>
+                        </div>
+                        <h4>Pipeline Orquestado</h4>
+                        <p>Workflows paralelos optimizados con quality gates y deployment inteligente a AWS EC2.</p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        </div>
+                        <h4>AMI Inteligente</h4>
+                        <p>Creación automática de AMIs solo cuando es necesario, con actualización bootc de instancias corriendo.</p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                        <h4>Quality Gates</h4>
+                        <p>Code quality, testing completo y compliance scanning antes de cada deployment.</p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </div>
+                        <h4>Updates Automáticos</h4>
+                        <p>Dependabot integrado y actualizaciones bootc sin downtime en instancias de producción.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pipeline Section -->
+    <section id="pipeline" class="py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-5 fw-bold">Pipeline DevOps</h2>
+                    <p class="lead">Flujo automatizado desde código hasta producción</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="pipeline-flow">
+                        <div class="pipeline-stage">
+                            <div class="stage-number">1</div>
+                            <div class="stage-content">
+                                <h5>Build & Push</h5>
+                                <p>Construcción de imagen bootc con Red Hat subscription automática</p>
+                            </div>
+                        </div>
+                        <div class="pipeline-arrow">→</div>
+                        <div class="pipeline-stage">
+                            <div class="stage-number">2</div>
+                            <div class="stage-content">
+                                <h5>Parallel Testing</h5>
+                                <p>Security scan, Code quality y Testing en paralelo</p>
+                            </div>
+                        </div>
+                        <div class="pipeline-arrow">→</div>
+                        <div class="pipeline-stage">
+                            <div class="stage-number">3</div>
+                            <div class="stage-content">
+                                <h5>Quality Gate</h5>
+                                <p>Evaluación crítica de resultados antes de deployment</p>
+                            </div>
+                        </div>
+                        <div class="pipeline-arrow">→</div>
+                        <div class="pipeline-stage">
+                            <div class="stage-number">4</div>
+                            <div class="stage-content">
+                                <h5>Deploy</h5>
+                                <p>Creación de AMI y actualización de instancias EC2</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Info Section -->
+    <section id="info" class="py-5 bg-light">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto text-center">
+                    <h2 class="display-5 fw-bold mb-4">NetLabs Global</h2>
+                    <p class="lead mb-4">
+                        Especialistas en modernización de infraestructura y DevOps avanzado. 
+                        Esta demo muestra nuestras capacidades con RHEL 10 image mode y tecnologías bootc.
+                    </p>
+                    <div class="row g-4 mt-4">
+                        <div class="col-md-4">
+                            <div class="info-stat">
+                                <h3 class="text-primary">100%</h3>
+                                <p>Automatización</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-stat">
+                                <h3 class="text-primary">5+</h3>
+                                <p>Security Scans</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-stat">
+                                <h3 class="text-primary">0</h3>
+                                <p>Downtime</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <div class="brand-logo me-2"></div>
+                        <span class="fw-bold">NetLabs Global</span>
+                    </div>
+                    <p class="mb-0 mt-2">RHEL 10 Image Mode Demo</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-0">Powered by bootc technology</p>
+                    <small class="text-muted">© 2025 NetLabs Global</small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="js/version.js"></script>
+</body>
+</html>

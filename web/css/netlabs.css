@@ -1,0 +1,362 @@
+/* NetLabs Custom Styles */
+:root {
+    --netlabs-primary: #4d65ff;
+    --netlabs-primary-dark: #3a4bcc;
+    --netlabs-secondary: #6c757d;
+    --netlabs-success: #28a745;
+    --netlabs-info: #17a2b8;
+    --netlabs-warning: #ffc107;
+    --netlabs-danger: #dc3545;
+    --netlabs-light: #f8f9fa;
+    --netlabs-dark: #343a40;
+    --netlabs-white: #ffffff;
+    --netlabs-black: #000000;
+}
+
+/* Typography - Titillium Web */
+body {
+    font-family: 'Titillium Web', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--netlabs-dark);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Titillium Web', sans-serif;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.display-4, .display-5 {
+    font-weight: 700;
+}
+
+/* Custom Bootstrap overrides */
+.text-primary {
+    color: var(--netlabs-primary) !important;
+}
+
+.bg-primary {
+    background-color: var(--netlabs-primary) !important;
+}
+
+.btn-primary {
+    background-color: var(--netlabs-primary);
+    border-color: var(--netlabs-primary);
+}
+
+.btn-primary:hover {
+    background-color: var(--netlabs-primary-dark);
+    border-color: var(--netlabs-primary-dark);
+}
+
+/* Brand Logo */
+.brand-logo {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
+    border-radius: 8px;
+    position: relative;
+}
+
+.brand-logo::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: var(--netlabs-white);
+    border-radius: 50%;
+}
+
+/* Navigation */
+.navbar {
+    padding: 1rem 0;
+    transition: all 0.3s ease;
+}
+
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.nav-link {
+    font-weight: 500;
+    color: var(--netlabs-dark) !important;
+    transition: color 0.3s ease;
+}
+
+.nav-link:hover {
+    color: var(--netlabs-primary) !important;
+}
+
+/* Hero Section */
+.hero-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding-top: 80px;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -50%;
+    width: 200%;
+    height: 100%;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23e9ecef" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>') repeat;
+    opacity: 0.5;
+    z-index: 0;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+}
+
+.hero-visual {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Container Visual */
+.container-visual {
+    max-width: 400px;
+    width: 100%;
+}
+
+.container-box {
+    background: var(--netlabs-white);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+}
+
+.container-header {
+    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
+    color: var(--netlabs-white);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.container-status {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 0.75rem;
+}
+
+.container-status.running {
+    background: #28a745;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 6px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+.container-body {
+    padding: 1.25rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.8;
+}
+
+.code-line {
+    margin-bottom: 0.5rem;
+}
+
+/* Version Info */
+.version-info {
+    border-left: 4px solid var(--netlabs-primary);
+    background: linear-gradient(135deg, #f8f9fa, #ffffff) !important;
+}
+
+/* Feature Cards */
+.feature-card {
+    background: var(--netlabs-white);
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--netlabs-white);
+    font-size: 2rem;
+}
+
+.feature-card h4 {
+    margin-bottom: 1rem;
+    color: var(--netlabs-dark);
+}
+
+/* Pipeline Flow */
+.pipeline-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.pipeline-stage {
+    background: var(--netlabs-white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    min-width: 200px;
+    position: relative;
+}
+
+.stage-number {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
+    color: var(--netlabs-white);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin: 0 auto 1rem;
+    font-size: 1.2rem;
+}
+
+.pipeline-arrow {
+    font-size: 2rem;
+    color: var(--netlabs-primary);
+    font-weight: bold;
+}
+
+/* Info Stats */
+.info-stat h3 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+}
+
+/* Footer */
+footer {
+    background: var(--netlabs-dark) !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .hero-section {
+        padding-top: 100px;
+    }
+    
+    .display-4 {
+        font-size: 2.5rem;
+    }
+    
+    .pipeline-flow {
+        flex-direction: column;
+    }
+    
+    .pipeline-arrow {
+        transform: rotate(90deg);
+    }
+    
+    .container-visual {
+        margin-top: 2rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .hero-content {
+        text-align: center;
+    }
+    
+    .feature-card {
+        padding: 1.5rem;
+    }
+    
+    .feature-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+    
+    .info-stat h3 {
+        font-size: 2.5rem;
+    }
+}
+
+/* Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.hero-content > * {
+    animation: fadeInUp 0.8s ease forwards;
+}
+
+.hero-content > *:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.hero-content > *:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
+.hero-content > *:nth-child(4) {
+    animation-delay: 0.3s;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Loading placeholders */
+.placeholder-glow .placeholder {
+    animation: placeholder-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes placeholder-glow {
+    0% { opacity: 1; }
+    100% { opacity: 0.5; }
+}

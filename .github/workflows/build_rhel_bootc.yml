@@ -34,6 +34,38 @@ jobs:
       - name: Clone the repository
         uses: actions/checkout@v4
 
+      - name: Generate version information for web demo
+        run: |
+          # Create version.json from template
+          VERSION="${GITHUB_REF_NAME:-demo-1.0.0}"
+          BUILD_SHA="${{ github.sha }}"
+          BUILD_DATE=$(date +%Y-%m-%d)
+          BUILD_TIME=$(date +%H:%M:%S)
+          BRANCH="${{ github.ref_name }}"
+          IMAGE_TAG="${{ github.ref_name }}"
+          REGISTRY="${{ env.DEST_REGISTRY_HOST }}/${{ env.DEST_IMAGE }}"
+          ENVIRONMENT="demo"
+          PIPELINE_RUN="${{ github.run_number }}"
+          
+          # Replace template variables
+          sed -e "s/\${VERSION}/$VERSION/g" \
+              -e "s/\${BUILD_SHA}/$BUILD_SHA/g" \
+              -e "s/\${BUILD_DATE}/$BUILD_DATE/g" \
+              -e "s/\${BUILD_TIME}/$BUILD_TIME/g" \
+              -e "s/\${BRANCH}/$BRANCH/g" \
+              -e "s/\${IMAGE_TAG}/$IMAGE_TAG/g" \
+              -e "s|\${REGISTRY}|$REGISTRY|g" \
+              -e "s/\${ENVIRONMENT}/$ENVIRONMENT/g" \
+              -e "s/\${PIPELINE_RUN}/$PIPELINE_RUN/g" \
+              -e "s/\${GITHUB_WORKFLOW}/${{ github.workflow }}/g" \
+              -e "s/\${GITHUB_RUN_ID}/${{ github.run_id }}/g" \
+              -e "s/\${GITHUB_RUN_NUMBER}/${{ github.run_number }}/g" \
+              -e "s/\${GITHUB_ACTOR}/${{ github.actor }}/g" \
+              web/version.json.template > web/version.json
+          
+          echo "Generated version.json:"
+          cat web/version.json
+
       - name: Get container tools in UBI builder
         run: dnf -y install podman buildah skopeo
 
