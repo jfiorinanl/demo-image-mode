@@ -150,18 +150,6 @@ jobs:
             echo "✅ Creando nueva AMI" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Install Podman and container tools
-        run: |
-          # Update package lists
-          sudo apt-get update
-          
-          # Install podman from official repository
-          sudo apt-get install -y podman containernetworking-plugins
-          
-          # Verify installation
-          podman --version
-          echo "✅ Podman installed successfully" >> $GITHUB_STEP_SUMMARY
-
       - name: Setup container storage and authentication
         run: |
           # Create directories for container storage (both root and user)
@@ -210,6 +198,22 @@ jobs:
           echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | podman login registry.redhat.io -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin --authfile $HOME/.config/containers/auth.json
           
           echo "✅ Successfully logged into both registries (rootful and rootless)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Log in to the GitHub Container registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.DEST_REGISTRY_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          auth_file_path: /root/.config/containers/auth.json
+    
+      - name: Log in to the GitHub Container registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.DEST_REGISTRY_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          auth_file_path: $HOME/.config/containers/auth.json
 
       - name: Validate credentials and test authentication
         run: |
