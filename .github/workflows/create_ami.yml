@@ -78,12 +78,6 @@ jobs:
           echo "ami_name=$AMI_NAME" >> $GITHUB_OUTPUT
           echo "AMI name to check: $AMI_NAME"
 
-      - name: Install AWS CLI
-        run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
-
       - name: Check if AMI exists
         id: check-ami
         run: |
