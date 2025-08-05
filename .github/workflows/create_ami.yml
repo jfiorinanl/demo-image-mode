@@ -182,11 +182,14 @@ jobs:
 
       - name: Login to registries
         run: |
+          # Ensure auth directory exists
+          mkdir -p $HOME/.config/containers
+          
           echo "Logging into GitHub Container Registry..."
-          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin --authfile $HOME/.config/containers/auth.json
           
           echo "Logging into Red Hat Registry..."
-          echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | podman login registry.redhat.io -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin
+          echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | podman login registry.redhat.io -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin --authfile $HOME/.config/containers/auth.json
           
           echo "✅ Successfully logged into both registries" >> $GITHUB_STEP_SUMMARY
 
@@ -239,6 +242,23 @@ jobs:
 
       - name: Prepare authentication for bootc-image-builder
         run: |
+          # Verify auth.json exists and contains credentials
+          if [ ! -f "$HOME/.config/containers/auth.json" ]; then
+            echo "❌ Auth file not found: $HOME/.config/containers/auth.json" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          # Verify auth.json contains both registries
+          if ! grep -q "ghcr.io" "$HOME/.config/containers/auth.json"; then
+            echo "❌ GitHub Container Registry credentials missing from auth.json" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          if ! grep -q "registry.redhat.io" "$HOME/.config/containers/auth.json"; then
+            echo "❌ Red Hat Registry credentials missing from auth.json" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
           # Create a temporary directory for container auth
           mkdir -p /tmp/container-auth
           
@@ -246,7 +266,8 @@ jobs:
           cp $HOME/.config/containers/auth.json /tmp/container-auth/auth.json
           chmod 644 /tmp/container-auth/auth.json
           
-          echo "✅ Authentication files prepared for container" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Authentication files prepared and verified for container" >> $GITHUB_STEP_SUMMARY
+          echo "📋 Auth file contains credentials for both registries" >> $GITHUB_STEP_SUMMARY
 
       - name: Create AMI with bootc-image-builder
         id: create-ami
