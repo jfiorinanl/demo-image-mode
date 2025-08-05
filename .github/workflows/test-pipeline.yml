@@ -30,7 +30,7 @@ jobs:
 
     - name: Install container tools and test dependencies
       run: |
-        dnf -y install podman buildah skopeo curl jq
+        dnf -y install podman buildah skopeo jq
         # Install container-structure-test
         curl -LO https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
         chmod +x container-structure-test-linux-amd64
