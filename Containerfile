@@ -1,7 +1,7 @@
 FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
 #install software
-RUN dnf -y install tmux mkpasswd
+RUN dnf -y install tmux mkpasswd podman buildah skopeo curl jq --allowerasing
 
 #configure bootc-user
 RUN pass=$(mkpasswd --method=SHA-512 --rounds=4096 netlabs) && useradd -m -G wheel bootc-user -p $pass

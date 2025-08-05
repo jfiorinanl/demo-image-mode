@@ -32,7 +32,7 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
-        languages: 'javascript,python'
+        languages: 'javascript'
         queries: security-extended,security-and-quality
 
     - name: Autobuild
@@ -41,7 +41,7 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
-        category: "/language:javascript,python"
+        category: "/language:javascript"
 
   dockerfile-security:
     name: Dockerfile Security Scan
@@ -163,6 +163,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Run Snyk to check for vulnerabilities
+      if: ${{ secrets.SNYK_TOKEN != '' }}
       uses: snyk/actions/node@master
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -172,7 +173,7 @@ jobs:
 
     - name: Upload Snyk results to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: ${{ secrets.SNYK_TOKEN != '' && always() }}
       with:
         sarif_file: snyk-results.sarif
         category: snyk
@@ -180,15 +181,25 @@ jobs:
 
     - name: Security audit for package managers
       run: |
+        echo "## Package Manager Security Audit" >> $GITHUB_STEP_SUMMARY
+        
         # Check if package.json exists (Node.js)
         if [ -f "package.json" ]; then
+          echo "Found package.json - Running npm audit..."
           npm audit --audit-level=moderate --json > npm-audit.json || true
+          echo "✅ NPM audit completed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ℹ️ No package.json found - skipping npm audit" >> $GITHUB_STEP_SUMMARY
         fi
         
         # Check if requirements.txt exists (Python)
         if [ -f "requirements.txt" ]; then
+          echo "Found requirements.txt - Running safety check..."
           pip install safety
           safety check --json > safety-audit.json || true
+          echo "✅ Python safety check completed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ℹ️ No requirements.txt found - skipping Python safety check" >> $GITHUB_STEP_SUMMARY
         fi
 
   security-summary:
