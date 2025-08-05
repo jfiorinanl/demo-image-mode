@@ -172,42 +172,6 @@ jobs:
             echo "4. Optionally run \`update-instances.yml\` to update running instances" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # NOTIFICACIONES (opcional)
-  notifications:
-    name: "📢 Notifications"
-    runs-on: ubuntu-latest
-    needs: [build-stage, quality-gate, deployment-stage, post-deployment]
-    if: always() && secrets.SLACK_WEBHOOK != ''
-    
-    steps:
-      - name: Send Slack notification
-        run: |
-          if [ "${{ needs.deployment-stage.result }}" == "success" ]; then
-            STATUS="✅ SUCCESS"
-            COLOR="good"
-            MESSAGE="Pipeline completed successfully! 🎉\n• Image: ${{ needs.build-stage.outputs.image_tag }}\n• AMI: Available in AWS\n• Environment: ${{ inputs.environment || 'staging' }}"
-          else
-            STATUS="❌ FAILED"
-            COLOR="danger" 
-            MESSAGE="Pipeline failed at deployment stage. Check logs for details."
-          fi
-          
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{
-              \"attachments\": [{
-                \"color\": \"$COLOR\",
-                \"title\": \"RHEL Image Mode Pipeline: $STATUS\",
-                \"text\": \"$MESSAGE\",
-                \"fields\": [
-                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true},
-                  {\"title\": \"Branch/Tag\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
-                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
-                  {\"title\": \"Workflow\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>\", \"short\": true}
-                ]
-              }]
-            }" \
-            ${{ secrets.SLACK_WEBHOOK }}
-
   # PIPELINE STATUS FINAL
   pipeline-status:
     name: "📈 Pipeline Status"
