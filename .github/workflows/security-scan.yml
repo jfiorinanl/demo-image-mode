@@ -172,22 +172,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Cache container tools
-      id: cache-tools
-      uses: actions/cache@v4
-      with:
-        path: |
-          /usr/bin/podman
-          /usr/bin/buildah
-          /usr/bin/skopeo
-          /usr/libexec/podman
-          /usr/share/containers
-        key: container-tools-security-${{ runner.os }}-${{ hashFiles('/etc/os-release') }}
-        restore-keys: |
-          container-tools-security-${{ runner.os }}-
-
     - name: Install container tools
-      if: steps.cache-tools.outputs.cache-hit != 'true'
       run: dnf -y install podman buildah skopeo
 
     - name: Cache DNF packages for security

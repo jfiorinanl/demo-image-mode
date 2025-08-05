@@ -204,21 +204,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Cache container tools for PR
-      id: cache-tools-pr
-      uses: actions/cache@v4
-      with:
-        path: |
-          /usr/bin/podman
-          /usr/bin/buildah
-          /usr/libexec/podman
-          /usr/share/containers
-        key: container-tools-pr-${{ runner.os }}-${{ hashFiles('/etc/os-release') }}
-        restore-keys: |
-          container-tools-pr-${{ runner.os }}-
-
     - name: Install container tools
-      if: steps.cache-tools-pr.outputs.cache-hit != 'true'
       run: dnf -y install podman buildah
 
     - name: Cache container images for PR build
