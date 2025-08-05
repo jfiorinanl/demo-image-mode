@@ -36,6 +36,9 @@ permissions:
   packages: write
   security-events: write
   deployments: write
+  actions: read
+  pull-requests: write
+  checks: write
 
 jobs:
   # ETAPA 1: BUILD DE IMAGEN
