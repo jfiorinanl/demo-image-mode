@@ -170,15 +170,15 @@ jobs:
           
           # Setup containers.conf for rootless mode
           cat > $HOME/.config/containers/containers.conf << 'EOF'
-[containers]
-default_ulimits = []
-pids_limit = 0
+          [containers]
+          default_ulimits = []
+          pids_limit = 0
 
-[engine]
-cgroup_manager = "systemd"
-events_logger = "journald"
-runtime = "crun"
-EOF
+          [engine]
+          cgroup_manager = "systemd"
+          events_logger = "journald"
+          runtime = "crun"
+          EOF
 
       - name: Login to registries
         run: |
