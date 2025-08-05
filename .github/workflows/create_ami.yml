@@ -206,14 +206,6 @@ jobs:
       - name: Extract AMI ID from logs
         id: extract-ami-id
         run: |
-          # Install AWS CLI for verification
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
-          
-          # Wait a moment and then find the AMI ID
-          sleep 30
-          
           AMI_ID=$(aws ec2 describe-images \
             --owners self \
             --filters "Name=name,Values=${{ steps.vars.outputs.ami_name }}" \
