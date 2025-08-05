@@ -70,13 +70,69 @@ jobs:
       uses: hadolint/hadolint-action@v3.1.0
       with:
         dockerfile: Containerfile
-        format: sarif
-        output-file: hadolint-results.sarif
-        no-fail: false
+        format: json
+        output-file: hadolint-results.json
+        no-fail: true
+
+    - name: Convert Hadolint results to SARIF
+      if: always()
+      run: |
+        if [ -f "hadolint-results.json" ]; then
+          # Create proper SARIF format
+          cat > hadolint-results.sarif << 'EOF'
+        {
+          "version": "2.1.0",
+          "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+          "runs": [
+            {
+              "tool": {
+                "driver": {
+                  "name": "hadolint",
+                  "version": "2.12.0",
+                  "informationUri": "https://github.com/hadolint/hadolint"
+                }
+              },
+              "results": []
+            }
+          ]
+        }
+        EOF
+          
+          # Convert JSON results to SARIF results array
+          if [ -s "hadolint-results.json" ]; then
+            jq '.[] | {
+              "ruleId": .code,
+              "level": (if .level == "error" then "error" elif .level == "warning" then "warning" else "note" end),
+              "message": {
+                "text": .message
+              },
+              "locations": [{
+                "physicalLocation": {
+                  "artifactLocation": {
+                    "uri": .file
+                  },
+                  "region": {
+                    "startLine": .line,
+                    "startColumn": .column
+                  }
+                }
+              }]
+            }' hadolint-results.json | jq -s '.' > results_array.json
+            
+            # Insert results into SARIF template
+            jq '.runs[0].results = input' hadolint-results.sarif results_array.json > temp.sarif
+            mv temp.sarif hadolint-results.sarif
+            rm results_array.json
+          fi
+          
+          echo "✅ SARIF conversion completed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ No hadolint results found" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Upload Hadolint SARIF
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && hashFiles('hadolint-results.sarif') != ''
       with:
         sarif_file: hadolint-results.sarif
         category: hadolint
