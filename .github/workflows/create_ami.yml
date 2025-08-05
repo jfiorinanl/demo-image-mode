@@ -164,11 +164,24 @@ jobs:
 
       - name: Setup container storage and authentication
         run: |
-          # Create directories for container storage
+          # Create directories for container storage (both root and user)
+          sudo mkdir -p /etc/containers
           mkdir -p $HOME/.config/containers
           mkdir -p $HOME/.local/share/containers
           
-          # Setup containers.conf for rootless mode
+          # Setup containers.conf for rootful mode (bootc-image-builder requirement)
+          sudo tee /etc/containers/containers.conf << 'EOF'
+          [containers]
+          default_ulimits = []
+          pids_limit = 0
+
+          [engine]
+          cgroup_manager = "systemd"
+          events_logger = "journald"
+          runtime = "crun"
+          EOF
+          
+          # Also setup user config as fallback
           cat > $HOME/.config/containers/containers.conf << 'EOF'
           [containers]
           default_ulimits = []
@@ -182,16 +195,21 @@ jobs:
 
       - name: Login to registries
         run: |
-          # Ensure auth directory exists
+          # Ensure auth directories exist (both root and user)
+          sudo mkdir -p /root/.config/containers
           mkdir -p $HOME/.config/containers
           
-          echo "Logging into GitHub Container Registry..."
-          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin --authfile $HOME/.config/containers/auth.json
+          echo "Logging into GitHub Container Registry (rootful)..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u ${{ github.actor }} --password-stdin --authfile /root/.config/containers/auth.json
           
-          echo "Logging into Red Hat Registry..."
+          echo "Logging into Red Hat Registry (rootful)..."
+          echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | sudo podman login registry.redhat.io -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin --authfile /root/.config/containers/auth.json
+          
+          # Also login for user (fallback)
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin --authfile $HOME/.config/containers/auth.json
           echo "${{ secrets.SOURCE_REGISTRY_PASSWORD }}" | podman login registry.redhat.io -u "${{ secrets.SOURCE_REGISTRY_USER }}" --password-stdin --authfile $HOME/.config/containers/auth.json
           
-          echo "✅ Successfully logged into both registries" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Successfully logged into both registries (rootful and rootless)" >> $GITHUB_STEP_SUMMARY
 
       - name: Validate credentials and test authentication
         run: |
@@ -210,7 +228,7 @@ jobs:
           
           # Test authentication by trying to get login info
           echo "Testing Red Hat registry authentication..."
-          if podman login --get-login registry.redhat.io >/dev/null 2>&1; then
+          if sudo podman login --get-login registry.redhat.io >/dev/null 2>&1; then
             echo "✅ Red Hat registry authentication successful" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Red Hat registry authentication failed" >> $GITHUB_STEP_SUMMARY
@@ -227,7 +245,7 @@ jobs:
       - name: Pull bootc-image-builder
         run: |
           echo "Pulling bootc-image-builder..."
-          if podman pull registry.redhat.io/rhel9/bootc-image-builder:latest; then
+          if sudo podman pull registry.redhat.io/rhel9/bootc-image-builder:latest; then
             echo "✅ Successfully pulled bootc-image-builder" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Failed to pull bootc-image-builder - authentication failed" >> $GITHUB_STEP_SUMMARY
@@ -242,19 +260,30 @@ jobs:
 
       - name: Prepare authentication for bootc-image-builder
         run: |
-          # Verify auth.json exists and contains credentials
-          if [ ! -f "$HOME/.config/containers/auth.json" ]; then
-            echo "❌ Auth file not found: $HOME/.config/containers/auth.json" >> $GITHUB_STEP_SUMMARY
-            exit 1
+          # Verify root auth.json exists and contains credentials (primary)
+          if [ ! -f "/root/.config/containers/auth.json" ]; then
+            echo "❌ Root auth file not found: /root/.config/containers/auth.json" >> $GITHUB_STEP_SUMMARY
+            
+            # Fallback to user auth.json
+            if [ ! -f "$HOME/.config/containers/auth.json" ]; then
+              echo "❌ User auth file also not found: $HOME/.config/containers/auth.json" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            else
+              AUTH_FILE="$HOME/.config/containers/auth.json"
+              echo "⚠️ Using user auth file as fallback" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            AUTH_FILE="/root/.config/containers/auth.json"
+            echo "✅ Using root auth file" >> $GITHUB_STEP_SUMMARY
           fi
           
           # Verify auth.json contains both registries
-          if ! grep -q "ghcr.io" "$HOME/.config/containers/auth.json"; then
+          if ! sudo grep -q "ghcr.io" "$AUTH_FILE"; then
             echo "❌ GitHub Container Registry credentials missing from auth.json" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
           
-          if ! grep -q "registry.redhat.io" "$HOME/.config/containers/auth.json"; then
+          if ! sudo grep -q "registry.redhat.io" "$AUTH_FILE"; then
             echo "❌ Red Hat Registry credentials missing from auth.json" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
@@ -262,9 +291,9 @@ jobs:
           # Create a temporary directory for container auth
           mkdir -p /tmp/container-auth
           
-          # Copy the podman auth file to a location the container can access
-          cp $HOME/.config/containers/auth.json /tmp/container-auth/auth.json
-          chmod 644 /tmp/container-auth/auth.json
+          # Copy the auth file to a location the container can access
+          sudo cp "$AUTH_FILE" /tmp/container-auth/auth.json
+          sudo chmod 644 /tmp/container-auth/auth.json
           
           echo "✅ Authentication files prepared and verified for container" >> $GITHUB_STEP_SUMMARY
           echo "📋 Auth file contains credentials for both registries" >> $GITHUB_STEP_SUMMARY
@@ -274,9 +303,22 @@ jobs:
         run: |
           echo "🚀 Iniciando creación de AMI..." >> $GITHUB_STEP_SUMMARY
           
-          # Run bootc-image-builder with proper authentication
+          # Validate source image has proper tag
+          SRC_IMAGE="${{ steps.vars.outputs.src_image }}"
+          if [[ "$SRC_IMAGE" == *":" ]]; then
+            echo "❌ Source image has empty tag: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
+            echo "IMAGE_TAG was: '${IMAGE_TAG}'" >> $GITHUB_STEP_SUMMARY
+            # Use 'latest' as fallback
+            SRC_IMAGE="${SRC_IMAGE}latest"
+            echo "🔧 Using fallback tag 'latest': $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "📋 Building AMI from: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
+          echo "📋 AMI Name: ${{ steps.vars.outputs.ami_name }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Run bootc-image-builder with proper authentication (rootful)
           set +e  # Don't exit on error, we want to capture it
-          podman run \
+          sudo podman run \
             --rm \
             --privileged \
             --security-opt label=type:unconfined_t \
@@ -290,7 +332,7 @@ jobs:
               --aws-ami-name "${{ steps.vars.outputs.ami_name }}" \
               --aws-bucket "${AWS_S3_BUCKET}" \
               --aws-region "${AWS_REGION}" \
-              "${{ steps.vars.outputs.src_image }}" \
+              "$SRC_IMAGE" \
             2>&1 | tee ami-creation.log
           
           EXIT_CODE=$?
