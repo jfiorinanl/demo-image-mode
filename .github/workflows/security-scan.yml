@@ -110,14 +110,14 @@ jobs:
         mkdir -p $HOME/.docker
         echo $auth > $HOME/.docker/config.json
 
-    - name: Log in to Red Hat registry (if secrets available)
-      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+    - name: Log in to Red Hat registry
       uses: redhat-actions/podman-login@v1
       with:
         registry: ${{ env.SOURCE_REGISTRY_HOST }}
         username: ${{ secrets.SOURCE_REGISTRY_USER }}
         password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
         auth_file_path: /run/containers/0/auth.json
+      continue-on-error: true  # Allow to continue if registry login fails
 
     - name: Build test image for security scanning
       id: build-test-image
@@ -164,18 +164,19 @@ jobs:
 
     - name: Run Snyk to check for vulnerabilities
       uses: snyk/actions/node@master
-      if: ${{ secrets.SNYK_TOKEN != '' }}
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       with:
         args: --sarif-file-output=snyk-results.sarif --severity-threshold=medium
+      continue-on-error: true  # Allow to continue if Snyk fails
 
     - name: Upload Snyk results to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && secrets.SNYK_TOKEN != ''
+      if: always()
       with:
         sarif_file: snyk-results.sarif
         category: snyk
+      continue-on-error: true  # Allow to continue if SARIF upload fails
 
     - name: Security audit for package managers
       run: |

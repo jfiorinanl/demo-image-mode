@@ -147,30 +147,37 @@ jobs:
           git push origin "${{ steps.release-info.outputs.release_tag }}-staging-verified" || true
 
       - name: Send release notifications
-        if: success() && secrets.SLACK_WEBHOOK != ''
+        if: success()
         run: |
-          ENVIRONMENT_EMOJI=""
-          if [ "${{ inputs.environment }}" == "production" ]; then
-            ENVIRONMENT_EMOJI="🔴"
+          # Only send notifications if Slack webhook is configured
+          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            ENVIRONMENT_EMOJI=""
+            if [ "${{ inputs.environment }}" == "production" ]; then
+              ENVIRONMENT_EMOJI="🔴"
+            else
+              ENVIRONMENT_EMOJI="🟡"
+            fi
+            
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"attachments\": [{
+                  \"color\": \"good\",
+                  \"title\": \"🚀 RHEL Image Mode Release: ${{ steps.release-info.outputs.release_tag }}\",
+                  \"text\": \"$ENVIRONMENT_EMOJI **${{ inputs.environment || 'production' }}** deployment completed successfully!\",
+                  \"fields\": [
+                    {\"title\": \"Tag\", \"value\": \"${{ steps.release-info.outputs.release_tag }}\", \"short\": true},
+                    {\"title\": \"Environment\", \"value\": \"${{ inputs.environment || 'production' }}\", \"short\": true},
+                    {\"title\": \"Container\", \"value\": \"ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.release-info.outputs.release_tag }}\", \"short\": false},
+                    {\"title\": \"Release Notes\", \"value\": \"<https://github.com/${{ github.repository }}/releases/tag/${{ steps.release-info.outputs.release_tag }}|View Release>\", \"short\": false}
+                  ]
+                }]
+              }" \
+              ${{ secrets.SLACK_WEBHOOK }}
+              
+            echo "✅ Slack notification sent"
           else
-            ENVIRONMENT_EMOJI="🟡"
+            echo "⚠️ Slack webhook not configured - skipping notification"
           fi
-          
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{
-              \"attachments\": [{
-                \"color\": \"good\",
-                \"title\": \"🚀 RHEL Image Mode Release: ${{ steps.release-info.outputs.release_tag }}\",
-                \"text\": \"$ENVIRONMENT_EMOJI **${{ inputs.environment || 'production' }}** deployment completed successfully!\",
-                \"fields\": [
-                  {\"title\": \"Tag\", \"value\": \"${{ steps.release-info.outputs.release_tag }}\", \"short\": true},
-                  {\"title\": \"Environment\", \"value\": \"${{ inputs.environment || 'production' }}\", \"short\": true},
-                  {\"title\": \"Container\", \"value\": \"ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.release-info.outputs.release_tag }}\", \"short\": false},
-                  {\"title\": \"Release Notes\", \"value\": \"<https://github.com/${{ github.repository }}/releases/tag/${{ steps.release-info.outputs.release_tag }}|View Release>\", \"short\": false}
-                ]
-              }]
-            }" \
-            ${{ secrets.SLACK_WEBHOOK }}
 
       - name: Release summary
         run: |

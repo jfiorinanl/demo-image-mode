@@ -43,14 +43,14 @@ jobs:
         mkdir -p $HOME/.docker
         echo $auth > $HOME/.docker/config.json
 
-    - name: Log in to Red Hat registry (if available)
-      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+    - name: Log in to Red Hat registry
       uses: redhat-actions/podman-login@v1
       with:
         registry: registry.redhat.io
         username: ${{ secrets.SOURCE_REGISTRY_USER }}
         password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
         auth_file_path: /run/containers/0/auth.json
+      continue-on-error: true  # Allow to continue if registry login fails
 
     - name: Build test image
       id: build
@@ -154,14 +154,14 @@ jobs:
         mkdir -p $HOME/.docker
         echo $auth > $HOME/.docker/config.json
 
-    - name: Log in to Red Hat registry (if available)
-      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+    - name: Log in to Red Hat registry
       uses: redhat-actions/podman-login@v1
       with:
         registry: registry.redhat.io
         username: ${{ secrets.SOURCE_REGISTRY_USER }}
         password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
         auth_file_path: /run/containers/0/auth.json
+      continue-on-error: true  # Allow to continue if registry login fails
 
     - name: Build and run container for testing
       run: |
@@ -237,14 +237,14 @@ jobs:
       run: |
         dnf -y install podman buildah curl time
 
-    - name: Log in to Red Hat registry (if available)
-      if: ${{ secrets.SOURCE_REGISTRY_USER != '' }}
+    - name: Log in to Red Hat registry
       uses: redhat-actions/podman-login@v1
       with:
         registry: registry.redhat.io
         username: ${{ secrets.SOURCE_REGISTRY_USER }}
         password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
         auth_file_path: /run/containers/0/auth.json
+      continue-on-error: true  # Allow to continue if registry login fails
 
     - name: Build performance test
       run: |
