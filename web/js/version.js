@@ -1,18 +1,20 @@
 /**
- * NetLabs Version Display System
- * Handles dynamic version information loading and display
+ * Demo Platform Status Display System
+ * Handles dynamic platform information loading and display
  */
 
 class VersionManager {
     constructor() {
         this.versionData = null;
         this.displayElement = document.getElementById('version-display');
+        this.headerVersionElement = document.getElementById('header-version');
         this.init();
     }
 
     async init() {
         await this.loadVersionInfo();
         this.displayVersionInfo();
+        this.updateHeaderVersion();
         this.setupAutoRefresh();
     }
 
@@ -39,19 +41,18 @@ class VersionManager {
         const buildTime = currentTime.toLocaleTimeString('es-ES');
         
         this.versionData = {
-            version: "demo-1.0.0",
+            version: "v2.1.0",
             build_sha: this.generateMockSHA(),
             build_date: buildDate,
             build_time: buildTime,
-            branch: "main",
-            image_tag: "latest",
-            registry: "ghcr.io/netlabs/demo-rhel10-image-mode",
-            environment: "demo",
-            container_info: {
-                base_image: "registry.redhat.io/rhel9/rhel-bootc:9.6",
-                user: "bootc-user",
-                service: "httpd",
-                port: "80"
+            branch: "production",
+            status: "online",
+            environment: "production",
+            platform_info: {
+                service: "Web Application",
+                security: "SSL Enabled",
+                monitoring: "Active",
+                load_balancer: "Optimized"
             }
         };
     }
@@ -84,15 +85,27 @@ class VersionManager {
     }
 
     buildVersionHTML() {
-        const { version, build_sha, build_date, build_time, branch, image_tag, registry, environment, container_info } = this.versionData;
+        const { version, build_sha, build_date, build_time, branch, status, environment, platform_info } = this.versionData;
         
         return `
             <div class="version-details">
                 <div class="row g-2">
                     <div class="col-md-6">
                         <div class="version-item">
-                            <strong>Versión:</strong> 
+                            <strong>Version:</strong> 
                             <span class="badge bg-primary ms-1">${version}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="version-item">
+                            <strong>Status:</strong> 
+                            <span class="badge bg-success ms-1">Online</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="version-item">
+                            <strong>Environment:</strong> 
+                            <span class="badge bg-info ms-1">${environment}</span>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -101,54 +114,30 @@ class VersionManager {
                             <code class="text-muted">${build_sha}</code>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="version-item">
-                            <strong>Branch:</strong> 
-                            <span class="badge bg-success ms-1">${branch}</span>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="version-item">
-                            <strong>Tag:</strong> 
-                            <code class="text-info">${image_tag}</code>
-                        </div>
-                    </div>
                     <div class="col-12">
                         <div class="version-item">
-                            <strong>Imagen:</strong> 
-                            <small class="text-muted d-block">${registry}</small>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="version-item">
-                            <strong>Compilado:</strong> 
+                            <strong>Last Updated:</strong> 
                             <small class="text-muted">${build_date} ${build_time}</small>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="version-item">
-                            <strong>Entorno:</strong> 
-                            <span class="badge bg-info ms-1">${environment}</span>
                         </div>
                     </div>
                 </div>
                 
                 <hr class="my-3">
                 
-                <div class="container-info">
-                    <h6 class="mb-2"><i class="bi bi-box me-1"></i>Información del Contenedor</h6>
+                <div class="platform-info">
+                    <h6 class="mb-2"><i class="bi bi-server me-1"></i>Platform Status</h6>
                     <div class="row g-2">
-                        <div class="col-12">
-                            <small><strong>Base:</strong> <code>${container_info.base_image}</code></small>
+                        <div class="col-md-6">
+                            <small><strong>Service:</strong> <code>${platform_info.service}</code></small>
                         </div>
-                        <div class="col-md-4">
-                            <small><strong>Usuario:</strong> <code>${container_info.user}</code></small>
+                        <div class="col-md-6">
+                            <small><strong>Security:</strong> <code>${platform_info.security}</code></small>
                         </div>
-                        <div class="col-md-4">
-                            <small><strong>Servicio:</strong> <code>${container_info.service}</code></small>
+                        <div class="col-md-6">
+                            <small><strong>Monitoring:</strong> <code>${platform_info.monitoring}</code></small>
                         </div>
-                        <div class="col-md-4">
-                            <small><strong>Puerto:</strong> <code>${container_info.port}</code></small>
+                        <div class="col-md-6">
+                            <small><strong>Load Balancer:</strong> <code>${platform_info.load_balancer}</code></small>
                         </div>
                     </div>
                 </div>
@@ -156,11 +145,24 @@ class VersionManager {
         `;
     }
 
+    updateHeaderVersion() {
+        if (!this.versionData || !this.headerVersionElement) {
+            return;
+        }
+
+        const versionBadge = this.headerVersionElement.querySelector('.badge');
+        if (versionBadge) {
+            versionBadge.textContent = this.versionData.version;
+            versionBadge.title = `Environment: ${this.versionData.environment} | Build: ${this.versionData.build_sha}`;
+        }
+    }
+
     setupAutoRefresh() {
         // Refresh version info every 5 minutes to catch updates
         setInterval(() => {
             this.loadVersionInfo().then(() => {
                 this.displayVersionInfo();
+                this.updateHeaderVersion();
             });
         }, 5 * 60 * 1000);
     }
@@ -169,6 +171,113 @@ class VersionManager {
     async refresh() {
         await this.loadVersionInfo();
         this.displayVersionInfo();
+        this.updateHeaderVersion();
+    }
+}
+
+/**
+ * Dynamic Announcement Banner Manager
+ * Handles loading and displaying announcement banners from announcement.json
+ */
+class AnnouncementManager {
+    constructor() {
+        this.bannerElement = document.getElementById('announcement-banner');
+        this.announcementData = null;
+        this.init();
+    }
+
+    async init() {
+        await this.loadAnnouncementConfig();
+        this.displayAnnouncement();
+    }
+
+    async loadAnnouncementConfig() {
+        console.log('Loading announcement config...');
+        try {
+            // Try to load announcement.json (pipeline generated)
+            const response = await fetch('/announcement.json');
+            console.log('Fetch response status:', response.status);
+            if (response.ok) {
+                this.announcementData = await response.json();
+                console.log('Loaded announcement data:', this.announcementData);
+                return;
+            }
+        } catch (error) {
+            console.warn('Could not load announcement.json:', error);
+        }
+
+        // Fallback: no announcement to show
+        console.log('Using fallback (no announcement)');
+        this.announcementData = { show: false };
+    }
+
+    displayAnnouncement() {
+        console.log('displayAnnouncement called with data:', this.announcementData);
+        console.log('bannerElement found:', !!this.bannerElement);
+        
+        if (!this.announcementData || !this.bannerElement) {
+            console.log('Banner not displayed - missing data or element');
+            return;
+        }
+        
+        if (!this.announcementData.show) {
+            console.log('Banner not displayed - show is false');
+            return;
+        }
+
+        const { type = 'info', icon = '📢', message, link, link_text = 'Learn More' } = this.announcementData;
+        
+        // Set banner type class
+        this.bannerElement.className = `announcement-banner type-${type}`;
+        
+        // Set content
+        const iconElement = this.bannerElement.querySelector('.announcement-icon');
+        const textElement = this.bannerElement.querySelector('.announcement-text');
+        const linkElement = this.bannerElement.querySelector('.announcement-link');
+        
+        if (iconElement) iconElement.textContent = icon;
+        if (textElement) textElement.textContent = message;
+        
+        // Handle optional link
+        if (link && linkElement) {
+            linkElement.href = link;
+            linkElement.textContent = link_text;
+            linkElement.classList.remove('d-none');
+        } else if (linkElement) {
+            linkElement.classList.add('d-none');
+        }
+        
+        // Show banner with animation
+        console.log('Showing banner with class:', this.bannerElement.className);
+        this.bannerElement.classList.remove('d-none');
+        
+        // Setup close functionality
+        this.setupCloseHandler();
+    }
+
+    setupCloseHandler() {
+        const closeButton = this.bannerElement.querySelector('.announcement-close');
+        if (closeButton) {
+            closeButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.hideBanner();
+            });
+        }
+    }
+
+    hideBanner() {
+        if (this.bannerElement) {
+            this.bannerElement.style.animation = 'slideDown 0.3s ease-out reverse';
+            setTimeout(() => {
+                this.bannerElement.classList.add('d-none');
+            }, 300);
+        }
+    }
+
+    // Public method to manually refresh announcement
+    async refresh() {
+        await this.loadAnnouncementConfig();
+        this.displayAnnouncement();
     }
 }
 
@@ -247,6 +356,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize version manager
     window.versionManager = new VersionManager();
     
+    // Initialize announcement manager with delay to ensure DOM is ready
+    setTimeout(() => {
+        console.log('Initializing announcement manager...');
+        try {
+            window.announcementManager = new AnnouncementManager();
+        } catch (error) {
+            console.error('Error initializing announcement manager:', error);
+            // Fallback: try to show banner anyway
+            setTimeout(() => {
+                window.testBanner();
+            }, 1000);
+        }
+    }, 1000);
+    
     // Setup utilities
     DemoUtils.setupSmoothScrolling();
     DemoUtils.setupAnimations();
@@ -256,11 +379,28 @@ document.addEventListener('DOMContentLoaded', () => {
         DemoUtils.addContainerStats();
     }, 10000);
     
-    console.log('NetLabs RHEL 10 Image Mode Demo initialized');
+    console.log('Demo Platform initialized');
 });
 
 // Export for potential external use
-window.NetLabsDemo = {
+window.DemoApp = {
     VersionManager,
+    AnnouncementManager,
     DemoUtils
+};
+
+// DEBUG: Test banner function
+window.testBanner = function() {
+    console.log('Testing banner manually...');
+    const banner = document.getElementById('announcement-banner');
+    if (!banner) {
+        console.error('Banner element not found!');
+        return;
+    }
+    
+    banner.className = 'announcement-banner type-success';
+    banner.querySelector('.announcement-icon').textContent = '🎉';
+    banner.querySelector('.announcement-text').textContent = 'Manual test banner working!';
+    banner.classList.remove('d-none');
+    console.log('Banner should be visible now');
 };

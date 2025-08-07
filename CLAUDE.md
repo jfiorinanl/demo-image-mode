@@ -87,16 +87,26 @@ gh workflow list
 gh run list
 ```
 
-### Testing (cuando se implemente)
+### Testing
 ```bash
-# Pruebas unitarias
-npm test  # o pytest, según framework elegido
+# Testing se ejecuta como parte del pipeline principal
+# Los tests incluyen:
+# - Container linting (bootc container lint)
+# - Security scanning (integrado en workflows)
+# - Pipeline validation tests
 
-# Pruebas de integración
-npm run test:integration
+# Test local del contenedor (requiere suscripción Red Hat activa)
+podman run -d -p 8080:80 demo-rhel10-image-mode
+curl http://localhost:8080  # Verificar web server
 
-# Pruebas de seguridad
-npm run security:scan
+# Test alternativo del contenido web (sin build)
+# Servir contenido directamente con Python/Node.js:
+cd web && python3 -m http.server 8080
+# O con Node.js: npx serve web -p 8080
+
+# Ejecutar workflows de testing individuales
+gh workflow run test-pipeline.yml
+gh workflow run security-scan.yml
 ```
 
 ## Secrets Requeridos
@@ -110,9 +120,10 @@ npm run security:scan
 ### AWS (AMI Creation)
 - AWS credentials para upload S3 y registro AMI
 
-### Security & Quality (futuro)
-- Tokens para herramientas de scanning de seguridad
-- Tokens para análisis de calidad de código
+### Security & Quality
+- `SONAR_TOKEN`: Token de SonarCloud (proyecto: `jfiorinanl_demo-image-mode`, org: `demo-nl`)
+- `SNYK_TOKEN`: Token para Snyk security scanning (opcional)
+- `GITHUB_TOKEN`: Auto-generado para CodeQL y security reports
 
 ## Configuración DevOps
 
@@ -127,6 +138,11 @@ npm run security:scan
 - **Usuario**: `bootc-user` (password: `netlabs`, sudo habilitado)
 - **Servicios**: httpd habilitado por defecto
 - **Puerto**: 80 expuesto para demo web
+- **Web Assets**: Contenido estático en `/usr/share/www/html/`
+  - `index.html`: Página de bienvenida Netlabs
+  - `css/netlabs.css`: Estilos corporativos
+  - `js/version.js`: Script de información dinámica
+  - `version.json.template`: Template para metadata de build
 
 ## Características Demo
 
@@ -179,4 +195,7 @@ npm run security:scan
 - Web server sirve página de bienvenida en puerto 80
 - Instancias EC2 deben tener tag `Project=rhel-bootc-demo` para auto-discovery
 - SSM agent requerido en instancias para updates remotos
+- `version.json.template` se procesa en build time con variables de entorno
+- Dependabot configurado para updates automáticos (GitHub Actions, Docker, npm, pip)
+- Security scanning programado diariamente a las 2 AM UTC
 - Preparado para mostrar capacidades completas de DevOps moderno

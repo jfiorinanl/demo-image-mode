@@ -1,16 +1,20 @@
-/* NetLabs Custom Styles */
+/* Demo Platform Custom Styles */
 :root {
     --netlabs-primary: #4d65ff;
     --netlabs-primary-dark: #3a4bcc;
     --netlabs-secondary: #6c757d;
     --netlabs-success: #28a745;
-    --netlabs-info: #17a2b8;
-    --netlabs-warning: #ffc107;
-    --netlabs-danger: #dc3545;
+    --netlabs-info: #69BFD3;
+    --netlabs-accent: #BCE3CC;
+    --netlabs-pastel: #f5f7fa;
     --netlabs-light: #f8f9fa;
     --netlabs-dark: #343a40;
     --netlabs-white: #ffffff;
     --netlabs-black: #000000;
+    /* Demo illustration colors */
+    --netlabs-blue-green: #69BFD3;
+    --netlabs-soft-green: #BCE3CC;
+    --netlabs-cream: #f5f3f0;
 }
 
 /* Typography - Titillium Web */
@@ -92,9 +96,31 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--netlabs-primary) !important;
 }
 
+/* Header Version Display */
+.header-version {
+    display: flex;
+    align-items: center;
+    margin-left: 1rem;
+}
+
+.header-version .badge {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 20px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-blue-green)) !important;
+    box-shadow: 0 2px 8px rgba(77, 101, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.header-version .badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(77, 101, 255, 0.4);
+}
+
 /* Hero Section */
 .hero-section {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: linear-gradient(135deg, var(--netlabs-pastel) 0%, var(--netlabs-white) 50%, var(--netlabs-accent) 100%);
     padding-top: 80px;
     position: relative;
     overflow: hidden;
@@ -107,8 +133,9 @@ h1, h2, h3, h4, h5, h6 {
     left: -50%;
     width: 200%;
     height: 100%;
-    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23e9ecef" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>') repeat;
-    opacity: 0.5;
+    background: radial-gradient(circle at 30% 70%, var(--netlabs-blue-green) 0%, transparent 50%),
+                radial-gradient(circle at 80% 30%, var(--netlabs-soft-green) 0%, transparent 50%);
+    opacity: 0.3;
     z-index: 0;
 }
 
@@ -125,57 +152,68 @@ h1, h2, h3, h4, h5, h6 {
     align-items: center;
 }
 
-/* Container Visual */
-.container-visual {
+/* Demo Illustration */
+.demo-illustration {
     max-width: 400px;
     width: 100%;
-}
-
-.container-box {
-    background: var(--netlabs-white);
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    border: 1px solid #e9ecef;
-}
-
-.container-header {
-    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
-    color: var(--netlabs-white);
-    padding: 1rem 1.25rem;
     display: flex;
+    justify-content: center;
     align-items: center;
-    font-size: 0.9rem;
 }
 
-.container-status {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: 0.75rem;
+.hero-svg {
+    width: 100%;
+    height: auto;
+    max-width: 400px;
+    filter: drop-shadow(0 10px 30px rgba(77, 101, 255, 0.1));
+    animation: float 6s ease-in-out infinite;
 }
 
-.container-status.running {
-    background: #28a745;
-    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3);
-    animation: pulse 2s infinite;
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
 }
 
-@keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-    70% { box-shadow: 0 0 0 6px rgba(40, 167, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+/* Subtle animation for SVG elements */
+.hero-svg circle:nth-child(1) {
+    animation: pulse-soft 4s ease-in-out infinite;
 }
 
-.container-body {
-    padding: 1.25rem;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 0.85rem;
-    line-height: 1.8;
+.hero-svg polygon:nth-child(1) {
+    animation: pulse-soft 5s ease-in-out infinite 1s;
 }
 
-.code-line {
-    margin-bottom: 0.5rem;
+.hero-svg ellipse {
+    animation: pulse-soft 6s ease-in-out infinite 2s;
+}
+
+@keyframes pulse-soft {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.02); }
+}
+
+/* Section illustrations */
+.section-illustration {
+    display: flex;
+    justify-content: center;
+}
+
+.services-accent-svg {
+    width: 200px;
+    height: 60px;
+    animation: float 4s ease-in-out infinite;
+}
+
+.services-accent-svg circle {
+    animation: pulse-soft 3s ease-in-out infinite;
+}
+
+.services-accent-svg circle:nth-child(2) {
+    animation-delay: 1s;
+}
+
+.services-accent-svg circle:nth-child(3) {
+    animation-delay: 2s;
 }
 
 /* Version Info */
@@ -204,13 +242,20 @@ h1, h2, h3, h4, h5, h6 {
     width: 80px;
     height: 80px;
     margin: 0 auto 1.5rem;
-    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
-    border-radius: 20px;
+    background: linear-gradient(135deg, var(--netlabs-blue-green), var(--netlabs-soft-green));
+    border-radius: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--netlabs-white);
     font-size: 2rem;
+    box-shadow: 0 8px 25px rgba(105, 191, 211, 0.3);
+    transition: all 0.3s ease;
+}
+
+.feature-card:hover .feature-icon {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 35px rgba(105, 191, 211, 0.4);
 }
 
 .feature-card h4 {
@@ -241,7 +286,7 @@ h1, h2, h3, h4, h5, h6 {
 .stage-number {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-primary-dark));
+    background: linear-gradient(135deg, var(--netlabs-primary), var(--netlabs-blue-green));
     color: var(--netlabs-white);
     border-radius: 50%;
     display: flex;
@@ -250,6 +295,7 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
     margin: 0 auto 1rem;
     font-size: 1.2rem;
+    box-shadow: 0 4px 15px rgba(77, 101, 255, 0.3);
 }
 
 .pipeline-arrow {
@@ -359,4 +405,118 @@ html {
 @keyframes placeholder-glow {
     0% { opacity: 1; }
     100% { opacity: 0.5; }
+}
+
+/* Dynamic Announcement Banner */
+.announcement-banner {
+    position: relative;
+    z-index: 10;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 0.75rem 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    animation: slideDown 0.5s ease-out;
+}
+
+@keyframes slideDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.announcement-content {
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    min-height: 45px;
+}
+
+.announcement-message {
+    flex-grow: 1;
+}
+
+.announcement-icon {
+    font-size: 1.1rem;
+    min-width: 20px;
+}
+
+.announcement-text {
+    line-height: 1.4;
+}
+
+.announcement-actions {
+    flex-shrink: 0;
+}
+
+.announcement-link {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-bottom: 1px solid transparent;
+    transition: border-bottom 0.2s ease;
+}
+
+.announcement-link:hover {
+    border-bottom-color: currentColor;
+    color: inherit;
+}
+
+.announcement-close {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    margin-left: 0.5rem;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.announcement-close:hover {
+    opacity: 1;
+}
+
+/* Banner Types */
+.announcement-banner.type-success {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    color: #155724;
+    border-bottom: 3px solid #28a745;
+}
+
+.announcement-banner.type-info {
+    background: linear-gradient(135deg, var(--netlabs-blue-green) 0%, var(--netlabs-soft-green) 100%);
+    color: var(--netlabs-white);
+    border-bottom: 3px solid var(--netlabs-primary);
+}
+
+.announcement-banner.type-warning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    color: #856404;
+    border-bottom: 3px solid #ffc107;
+}
+
+.announcement-banner.type-primary {
+    background: linear-gradient(135deg, var(--netlabs-primary) 0%, var(--netlabs-blue-green) 100%);
+    color: var(--netlabs-white);
+    border-bottom: 3px solid var(--netlabs-primary-dark);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .announcement-banner {
+        padding: 0.5rem 0;
+        font-size: 0.85rem;
+    }
+    
+    .announcement-content {
+        padding: 0.5rem 0.75rem;
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .announcement-actions {
+        margin-top: 0.5rem;
+        width: 100%;
+        justify-content: space-between;
+    }
 }

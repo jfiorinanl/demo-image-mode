@@ -131,6 +131,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-cache-ami-${{ runner.os }}
+          restore-keys: |
+            apt-cache-ami-${{ runner.os }}
+
+      - name: Cache container images and layers for AMI build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/containers
+            /var/lib/containers
+            /root/.local/share/containers
+          key: container-ami-${{ runner.os }}-${{ hashFiles('Containerfile') }}-${{ github.sha }}
+          restore-keys: |
+            container-ami-${{ runner.os }}-${{ hashFiles('Containerfile') }}-
+            container-ami-${{ runner.os }}-
+
+      - name: Install Podman and container tools
+        run: |
+          # Update package lists
+          sudo apt-get update
+          
+          # Install podman from official repository
+          sudo apt-get install -y podman containernetworking-plugins
+          
+          # Verify installation
+          podman --version
+          echo "✅ Podman installed successfully" >> $GITHUB_STEP_SUMMARY
+
       - name: Preparar variables para build
         id: vars
         shell: bash
@@ -246,20 +278,29 @@ jobs:
             exit 1
           fi
 
-      - name: Pull bootc-image-builder
+      - name: Pull bootc-image-builder (with cache optimization)
         run: |
-          echo "Pulling bootc-image-builder..."
-          if sudo podman pull registry.redhat.io/rhel9/bootc-image-builder:latest; then
-            echo "✅ Successfully pulled bootc-image-builder" >> $GITHUB_STEP_SUMMARY
+          echo "Checking bootc-image-builder in cache..."
+          
+          # Check if image exists in cache
+          if sudo podman image exists registry.redhat.io/rhel9/bootc-image-builder:latest; then
+            echo "✅ bootc-image-builder found in cache" >> $GITHUB_STEP_SUMMARY
+            echo "Verifying image integrity..."
+            sudo podman inspect registry.redhat.io/rhel9/bootc-image-builder:latest > /dev/null
           else
-            echo "❌ Failed to pull bootc-image-builder - authentication failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 💡 Most Common Causes:" >> $GITHUB_STEP_SUMMARY
-            echo "1. **Invalid Credentials**: Check that your Red Hat Customer Portal username/password are correct" >> $GITHUB_STEP_SUMMARY
-            echo "2. **Expired Subscription**: Ensure your Red Hat subscription is active" >> $GITHUB_STEP_SUMMARY
-            echo "3. **Account Issues**: Your account may need to accept new terms at https://access.redhat.com" >> $GITHUB_STEP_SUMMARY
-            echo "4. **Wrong Registry**: Make sure you're using registry.redhat.io, not other Red Hat registries" >> $GITHUB_STEP_SUMMARY
-            exit 1
+            echo "🔄 Pulling bootc-image-builder from registry..."
+            if sudo podman pull registry.redhat.io/rhel9/bootc-image-builder:latest; then
+              echo "✅ Successfully pulled bootc-image-builder" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Failed to pull bootc-image-builder - authentication failed" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "## 💡 Most Common Causes:" >> $GITHUB_STEP_SUMMARY
+              echo "1. **Invalid Credentials**: Check that your Red Hat Customer Portal username/password are correct" >> $GITHUB_STEP_SUMMARY
+              echo "2. **Expired Subscription**: Ensure your Red Hat subscription is active" >> $GITHUB_STEP_SUMMARY
+              echo "3. **Account Issues**: Your account may need to accept new terms at https://access.redhat.com" >> $GITHUB_STEP_SUMMARY
+              echo "4. **Wrong Registry**: Make sure you're using registry.redhat.io, not other Red Hat registries" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
           fi
 
       - name: Prepare authentication for bootc-image-builder
@@ -321,18 +362,27 @@ jobs:
           echo "📋 AMI Name: ${{ steps.vars.outputs.ami_name }}" >> $GITHUB_STEP_SUMMARY
           
           # Pull the source image first (bootc-image-builder no longer pulls automatically)
-          echo "🔄 Pulling source image: $SRC_IMAGE"
-          if sudo podman pull "$SRC_IMAGE"; then
-            echo "✅ Source image pulled successfully" >> $GITHUB_STEP_SUMMARY
+          echo "🔍 Checking source image in cache: $SRC_IMAGE"
+          
+          # Check if source image exists in cache
+          if sudo podman image exists "$SRC_IMAGE"; then
+            echo "✅ Source image found in cache" >> $GITHUB_STEP_SUMMARY
+            echo "Verifying image integrity..."
+            sudo podman inspect "$SRC_IMAGE" > /dev/null
           else
-            echo "❌ Failed to pull source image: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 🔧 Troubleshooting:" >> $GITHUB_STEP_SUMMARY
-            echo "1. **Check image exists**: Verify the image was built and pushed in previous workflow" >> $GITHUB_STEP_SUMMARY
-            echo "2. **Check registry access**: Ensure GitHub Container Registry credentials are valid" >> $GITHUB_STEP_SUMMARY
-            echo "3. **Check tag**: Verify the image tag '$IMAGE_TAG' exists" >> $GITHUB_STEP_SUMMARY
-            echo "4. **Manual check**: Visit https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/pkgs/container/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
-            exit 1
+            echo "🔄 Pulling source image from registry: $SRC_IMAGE"
+            if sudo podman pull "$SRC_IMAGE"; then
+              echo "✅ Source image pulled successfully" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Failed to pull source image: $SRC_IMAGE" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "## 🔧 Troubleshooting:" >> $GITHUB_STEP_SUMMARY
+              echo "1. **Check image exists**: Verify the image was built and pushed in previous workflow" >> $GITHUB_STEP_SUMMARY
+              echo "2. **Check registry access**: Ensure GitHub Container Registry credentials are valid" >> $GITHUB_STEP_SUMMARY
+              echo "3. **Check tag**: Verify the image tag '$IMAGE_TAG' exists" >> $GITHUB_STEP_SUMMARY
+              echo "4. **Manual check**: Visit https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/pkgs/container/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
           fi
           
           # Run bootc-image-builder with proper authentication and storage mounts (rootful)

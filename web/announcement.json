@@ -1,0 +1,8 @@
+{
+  "show": true,
+  "type": "success",
+  "icon": "✨",
+  "message": "Pipeline completed successfully! Latest version deployed.",
+  "link": "#info",
+  "link_text": "View Details"
+}

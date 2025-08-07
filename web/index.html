@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NetLabs - RHEL 10 Image Mode Demo</title>
+    <title>Demo - Digital Infrastructure Solutions</title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
-    <!-- Google Fonts - Titillium Web (NetLabs style) -->
+    <!-- Google Fonts - Titillium Web (Demo style) -->
     <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="css/netlabs.css" rel="stylesheet">
@@ -20,7 +20,7 @@
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="#">
                 <div class="brand-logo me-2"></div>
-                <span class="fw-bold">NetLabs</span>
+                <span class="fw-bold">Demo</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -28,18 +28,39 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="#features">Features</a>
+                        <a class="nav-link" href="#services">Services</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#pipeline">Pipeline</a>
+                        <a class="nav-link" href="#process">Process</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#info">Info</a>
+                    </li>
+                    <li class="nav-item ms-3">
+                        <div class="header-version" id="header-version">
+                            <span class="badge bg-primary">v0.0.0</span>
+                        </div>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
+
+    <!-- Dynamic Announcement Banner -->
+    <div id="announcement-banner" class="announcement-banner d-none">
+        <div class="container">
+            <div class="announcement-content d-flex align-items-center justify-content-between">
+                <div class="announcement-message d-flex align-items-center">
+                    <span class="announcement-icon me-2"></span>
+                    <span class="announcement-text"></span>
+                </div>
+                <div class="announcement-actions d-flex align-items-center">
+                    <a href="#" class="announcement-link me-3 d-none">Learn More</a>
+                    <button class="btn-close announcement-close" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Hero Section -->
     <section class="hero-section">
@@ -48,29 +69,29 @@
                 <div class="col-lg-6">
                     <div class="hero-content">
                         <h1 class="display-4 fw-bold mb-4">
-                            RHEL 10 <span class="text-primary">Image Mode</span>
-                            <br>DevOps Demo
+                            Your digital infrastructure
+                            <br><span class="text-primary">team of nerds</span>
                         </h1>
                         <p class="lead mb-4">
-                            Demostración completa de capacidades DevOps modernas con RHEL 10 image mode, 
-                            incluyendo pipelines automatizados, security scanning y deployment inteligente.
+                            We build, optimize and manage digital infrastructure solutions that scale.
+                            From cloud architecture to security implementations, we're your technical partners.
                         </p>
                         <div class="d-flex flex-wrap gap-3 mb-4">
                             <span class="badge bg-primary fs-6 px-3 py-2">
-                                <i class="bi bi-gear-fill me-1"></i>
-                                Bootc Technology
+                                <i class="bi bi-cloud me-1"></i>
+                                Cloud Solutions
                             </span>
                             <span class="badge bg-success fs-6 px-3 py-2">
                                 <i class="bi bi-shield-check me-1"></i>
-                                Security Integrated
+                                Security First
                             </span>
                             <span class="badge bg-info fs-6 px-3 py-2">
-                                <i class="bi bi-cloud-arrow-up me-1"></i>
-                                CI/CD Pipeline
+                                <i class="bi bi-people me-1"></i>
+                                Expert Team
                             </span>
                         </div>
                         <div class="version-info p-3 bg-light rounded">
-                            <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Información de la Imagen</h6>
+                            <h6 class="mb-2"><i class="bi bi-server me-2"></i>Platform Status</h6>
                             <div id="version-display">
                                 <div class="placeholder-glow">
                                     <span class="placeholder col-8"></span>
@@ -81,20 +102,41 @@
                 </div>
                 <div class="col-lg-6">
                     <div class="hero-visual">
-                        <div class="container-visual">
-                            <div class="container-box">
-                                <div class="container-header">
-                                    <div class="container-status running"></div>
-                                    <span class="fw-bold">RHEL Bootc Container</span>
-                                </div>
-                                <div class="container-body">
-                                    <div class="code-line"><span class="text-success">✓</span> Image: registry.redhat.io/rhel9/rhel-bootc:9.6</div>
-                                    <div class="code-line"><span class="text-success">✓</span> Status: Running</div>
-                                    <div class="code-line"><span class="text-success">✓</span> Port: 80:80</div>
-                                    <div class="code-line"><span class="text-primary">→</span> User: bootc-user</div>
-                                    <div class="code-line"><span class="text-primary">→</span> Service: httpd active</div>
-                                </div>
-                            </div>
+                        <div class="demo-illustration">
+                            <svg viewBox="0 0 400 300" class="hero-svg">
+                                <!-- Background elements -->
+                                <defs>
+                                    <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#69BFD3" stop-opacity="0.6"/>
+                                        <stop offset="100%" stop-color="#BCE3CC" stop-opacity="0.4"/>
+                                    </linearGradient>
+                                    <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#4d65ff" stop-opacity="0.3"/>
+                                        <stop offset="100%" stop-color="#69BFD3" stop-opacity="0.2"/>
+                                    </linearGradient>
+                                    <linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#BCE3CC" stop-opacity="0.5"/>
+                                        <stop offset="100%" stop-color="#f8f9fa" stop-opacity="0.3"/>
+                                    </linearGradient>
+                                </defs>
+                                
+                                <!-- Abstract geometric shapes -->
+                                <circle cx="80" cy="80" r="60" fill="url(#gradient1)"/>
+                                <polygon points="200,50 280,100 250,180 170,160" fill="url(#gradient2)"/>
+                                <ellipse cx="320" cy="120" rx="50" ry="80" fill="url(#gradient3)"/>
+                                <circle cx="150" cy="200" r="40" fill="url(#gradient1)" opacity="0.7"/>
+                                <polygon points="300,200 360,230 340,280 280,270" fill="url(#gradient2)" opacity="0.6"/>
+                                
+                                <!-- Connection lines -->
+                                <line x1="80" y1="80" x2="150" y2="200" stroke="#4d65ff" stroke-width="2" opacity="0.3"/>
+                                <line x1="200" y1="120" x2="320" y2="120" stroke="#69BFD3" stroke-width="2" opacity="0.4"/>
+                                
+                                <!-- Small accent circles -->
+                                <circle cx="50" cy="150" r="8" fill="#4d65ff" opacity="0.6"/>
+                                <circle cx="350" cy="60" r="6" fill="#BCE3CC" opacity="0.8"/>
+                                <circle cx="180" cy="40" r="4" fill="#69BFD3" opacity="0.7"/>
+                                <circle cx="300" cy="250" r="10" fill="#4d65ff" opacity="0.4"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -102,23 +144,39 @@
         </div>
     </section>
 
-    <!-- Features Section -->
-    <section id="features" class="py-5 bg-light">
+    <!-- Services Section -->
+    <section id="services" class="py-5" style="background: linear-gradient(135deg, var(--netlabs-white) 0%, var(--netlabs-pastel) 100%);">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center mb-5">
-                    <h2 class="display-5 fw-bold">Capacidades DevOps Completas</h2>
-                    <p class="lead">Pipeline automatizado con las mejores prácticas de desarrollo moderno</p>
+                    <div class="section-illustration mb-4">
+                        <svg viewBox="0 0 200 60" class="services-accent-svg">
+                            <defs>
+                                <linearGradient id="serviceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#69BFD3" stop-opacity="0.4"/>
+                                    <stop offset="50%" stop-color="#4d65ff" stop-opacity="0.3"/>
+                                    <stop offset="100%" stop-color="#BCE3CC" stop-opacity="0.4"/>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="40" cy="30" r="15" fill="url(#serviceGrad)"/>
+                            <circle cx="100" cy="30" r="12" fill="url(#serviceGrad)" opacity="0.7"/>
+                            <circle cx="160" cy="30" r="18" fill="url(#serviceGrad)" opacity="0.5"/>
+                            <line x1="55" y1="30" x2="88" y2="30" stroke="#69BFD3" stroke-width="2" opacity="0.6"/>
+                            <line x1="112" y1="30" x2="142" y2="30" stroke="#69BFD3" stroke-width="2" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <h2 class="display-5 fw-bold">What We Do Best</h2>
+                    <p class="lead">Complete digital infrastructure solutions tailored for modern business</p>
                 </div>
             </div>
             <div class="row g-4">
                 <div class="col-md-6 col-lg-4">
                     <div class="feature-card h-100">
                         <div class="feature-icon">
-                            <i class="bi bi-cpu"></i>
+                            <i class="bi bi-cloud"></i>
                         </div>
-                        <h4>Bootc Technology</h4>
-                        <p>Imágenes inmutables basadas en contenedores que permiten actualizaciones atómicas y rollbacks seguros.</p>
+                        <h4>Cloud Architecture</h4>
+                        <p>Scalable cloud solutions designed for performance, reliability, and cost-effectiveness across all major platforms.</p>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4">
@@ -126,8 +184,8 @@
                         <div class="feature-icon">
                             <i class="bi bi-shield-shaded"></i>
                         </div>
-                        <h4>Security Scanning</h4>
-                        <p>Análisis completo de vulnerabilidades con CodeQL, Trivy, Hadolint y Snyk integrados en el pipeline.</p>
+                        <h4>Security Solutions</h4>
+                        <p>Comprehensive security implementations including threat detection, compliance monitoring, and vulnerability management.</p>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4">
@@ -135,48 +193,48 @@
                         <div class="feature-icon">
                             <i class="bi bi-diagram-3"></i>
                         </div>
-                        <h4>Pipeline Orquestado</h4>
-                        <p>Workflows paralelos optimizados con quality gates y deployment inteligente a AWS EC2.</p>
+                        <h4>Infrastructure Automation</h4>
+                        <p>Automated deployment and management systems that reduce complexity and ensure consistent performance.</p>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4">
                     <div class="feature-card h-100">
                         <div class="feature-icon">
-                            <i class="bi bi-cloud-arrow-up"></i>
+                            <i class="bi bi-speedometer2"></i>
                         </div>
-                        <h4>AMI Inteligente</h4>
-                        <p>Creación automática de AMIs solo cuando es necesario, con actualización bootc de instancias corriendo.</p>
+                        <h4>Performance Optimization</h4>
+                        <p>Advanced monitoring and optimization techniques to ensure your systems run at peak efficiency.</p>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4">
                     <div class="feature-card h-100">
                         <div class="feature-icon">
-                            <i class="bi bi-check2-circle"></i>
+                            <i class="bi bi-people"></i>
                         </div>
-                        <h4>Quality Gates</h4>
-                        <p>Code quality, testing completo y compliance scanning antes de cada deployment.</p>
+                        <h4>Expert Consulting</h4>
+                        <p>Technical consultation and strategic planning from experienced infrastructure specialists.</p>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4">
                     <div class="feature-card h-100">
                         <div class="feature-icon">
-                            <i class="bi bi-arrow-repeat"></i>
+                            <i class="bi bi-headset"></i>
                         </div>
-                        <h4>Updates Automáticos</h4>
-                        <p>Dependabot integrado y actualizaciones bootc sin downtime en instancias de producción.</p>
+                        <h4>24/7 Support</h4>
+                        <p>Round-the-clock monitoring and support to keep your infrastructure running smoothly.</p>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Pipeline Section -->
-    <section id="pipeline" class="py-5">
+    <!-- Process Section -->
+    <section id="process" class="py-5">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center mb-5">
-                    <h2 class="display-5 fw-bold">Pipeline DevOps</h2>
-                    <p class="lead">Flujo automatizado desde código hasta producción</p>
+                    <h2 class="display-5 fw-bold">How We Work</h2>
+                    <p class="lead">Our proven methodology for delivering successful projects</p>
                 </div>
             </div>
             <div class="row">
@@ -185,32 +243,32 @@
                         <div class="pipeline-stage">
                             <div class="stage-number">1</div>
                             <div class="stage-content">
-                                <h5>Build & Push</h5>
-                                <p>Construcción de imagen bootc con Red Hat subscription automática</p>
+                                <h5>Discovery & Analysis</h5>
+                                <p>Understanding your business requirements and current infrastructure</p>
                             </div>
                         </div>
                         <div class="pipeline-arrow">→</div>
                         <div class="pipeline-stage">
                             <div class="stage-number">2</div>
                             <div class="stage-content">
-                                <h5>Parallel Testing</h5>
-                                <p>Security scan, Code quality y Testing en paralelo</p>
+                                <h5>Design & Planning</h5>
+                                <p>Creating comprehensive solutions architecture and implementation roadmap</p>
                             </div>
                         </div>
                         <div class="pipeline-arrow">→</div>
                         <div class="pipeline-stage">
                             <div class="stage-number">3</div>
                             <div class="stage-content">
-                                <h5>Quality Gate</h5>
-                                <p>Evaluación crítica de resultados antes de deployment</p>
+                                <h5>Implementation</h5>
+                                <p>Deploying solutions with minimal disruption to your operations</p>
                             </div>
                         </div>
                         <div class="pipeline-arrow">→</div>
                         <div class="pipeline-stage">
                             <div class="stage-number">4</div>
                             <div class="stage-content">
-                                <h5>Deploy</h5>
-                                <p>Creación de AMI y actualización de instancias EC2</p>
+                                <h5>Support & Optimize</h5>
+                                <p>Ongoing monitoring, maintenance, and continuous improvement</p>
                             </div>
                         </div>
                     </div>
@@ -220,32 +278,32 @@
     </section>
 
     <!-- Info Section -->
-    <section id="info" class="py-5 bg-light">
+    <section id="info" class="py-5" style="background: linear-gradient(135deg, var(--netlabs-accent) 0%, var(--netlabs-white) 100%);">
         <div class="container">
             <div class="row">
                 <div class="col-lg-8 mx-auto text-center">
-                    <h2 class="display-5 fw-bold mb-4">NetLabs Global</h2>
+                    <h2 class="display-5 fw-bold mb-4">Demo Platform</h2>
                     <p class="lead mb-4">
-                        Especialistas en modernización de infraestructura y DevOps avanzado. 
-                        Esta demo muestra nuestras capacidades con RHEL 10 image mode y tecnologías bootc.
+                        We're infrastructure specialists with deep technical expertise in cloud, security, and automation. 
+                        This platform demonstrates our commitment to building reliable, scalable solutions.
                     </p>
                     <div class="row g-4 mt-4">
                         <div class="col-md-4">
                             <div class="info-stat">
-                                <h3 class="text-primary">100%</h3>
-                                <p>Automatización</p>
+                                <h3 class="text-primary">99.9%</h3>
+                                <p>Uptime</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="info-stat">
-                                <h3 class="text-primary">5+</h3>
-                                <p>Security Scans</p>
+                                <h3 class="text-primary">24/7</h3>
+                                <p>Monitoring</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="info-stat">
-                                <h3 class="text-primary">0</h3>
-                                <p>Downtime</p>
+                                <h3 class="text-primary">10+</h3>
+                                <p>Years Experience</p>
                             </div>
                         </div>
                     </div>
@@ -261,13 +319,13 @@
                 <div class="col-md-6">
                     <div class="d-flex align-items-center">
                         <div class="brand-logo me-2"></div>
-                        <span class="fw-bold">NetLabs Global</span>
+                        <span class="fw-bold">Demo Platform</span>
                     </div>
-                    <p class="mb-0 mt-2">RHEL 10 Image Mode Demo</p>
+                    <p class="mb-0 mt-2">Infrastructure Solutions Platform</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <p class="mb-0">Powered by bootc technology</p>
-                    <small class="text-muted">© 2025 NetLabs Global</small>
+                    <p class="mb-0">Powered by modern tech stack</p>
+                    <small class="text-muted">© 2025 Demo Platform</small>
                 </div>
             </div>
         </div>
@@ -277,5 +335,42 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
     <script src="js/version.js"></script>
+    
+    <!-- Banner initialization fallback -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fallback banner initialization after page load
+        setTimeout(function() {
+            fetch('/announcement.json')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Fallback: Loaded announcement data:', data);
+                    if (data && data.show) {
+                        const banner = document.getElementById('announcement-banner');
+                        if (banner) {
+                            banner.className = `announcement-banner type-${data.type || 'info'}`;
+                            const icon = banner.querySelector('.announcement-icon');
+                            const text = banner.querySelector('.announcement-text');
+                            const link = banner.querySelector('.announcement-link');
+                            
+                            if (icon) icon.textContent = data.icon || '📢';
+                            if (text) text.textContent = data.message || 'Announcement';
+                            if (link && data.link) {
+                                link.href = data.link;
+                                link.textContent = data.link_text || 'Learn More';
+                                link.classList.remove('d-none');
+                            }
+                            
+                            banner.classList.remove('d-none');
+                            console.log('Fallback: Banner should be visible now');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.log('Fallback: No announcement.json found or error:', error);
+                });
+        }, 2000);
+    });
+    </script>
 </body>
 </html>

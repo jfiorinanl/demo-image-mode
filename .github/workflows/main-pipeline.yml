@@ -128,7 +128,7 @@ jobs:
     uses: ./.github/workflows/create_ami.yml
     with:
       image_tag: ${{ needs.build-stage.outputs.image_tag }}
-      ami_name_override: ${{ vars.AMI_NAME_PREFIX }}-${{ needs.build-stage.outputs.image_tag }}-${{ github.run_number }}
+      ami_name_override: ${{ vars.AMI_NAME_PREFIX }}-${{ needs.build-stage.outputs.image_tag }}
       force_ami_creation: ${{ inputs.force_ami_creation || false }}
       update_running_instances: ${{ inputs.update_instances || false }}
     secrets: inherit

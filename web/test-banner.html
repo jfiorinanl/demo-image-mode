@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Banner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/netlabs.css" rel="stylesheet">
+</head>
+<body>
+    <div id="announcement-banner" class="announcement-banner d-none">
+        <div class="container">
+            <div class="announcement-content d-flex align-items-center justify-content-between">
+                <div class="announcement-message d-flex align-items-center">
+                    <span class="announcement-icon me-2"></span>
+                    <span class="announcement-text"></span>
+                </div>
+                <div class="announcement-actions d-flex align-items-center">
+                    <a href="#" class="announcement-link me-3 d-none">Learn More</a>
+                    <button class="btn-close announcement-close" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container mt-5">
+        <h1>Banner Test</h1>
+        <button onclick="showBanner()" class="btn btn-primary">Show Banner</button>
+        <button onclick="hideBanner()" class="btn btn-secondary">Hide Banner</button>
+    </div>
+
+    <script>
+        function showBanner() {
+            const banner = document.getElementById('announcement-banner');
+            banner.className = 'announcement-banner type-success';
+            banner.querySelector('.announcement-icon').textContent = '🎉';
+            banner.querySelector('.announcement-text').textContent = 'Test banner is working!';
+            banner.classList.remove('d-none');
+        }
+        
+        function hideBanner() {
+            document.getElementById('announcement-banner').classList.add('d-none');
+        }
+    </script>
+</body>
+</html>

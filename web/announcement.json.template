@@ -1,0 +1,8 @@
+{
+  "show": ${SHOW_ANNOUNCEMENT:-true},
+  "type": "${ANNOUNCEMENT_TYPE:-primary}",
+  "icon": "${ANNOUNCEMENT_ICON:-🚀}",
+  "message": "${ANNOUNCEMENT_MESSAGE:-New deployment available with latest features!}",
+  "link": "${ANNOUNCEMENT_LINK:-#services}",
+  "link_text": "${ANNOUNCEMENT_LINK_TEXT:-Learn More}"
+}

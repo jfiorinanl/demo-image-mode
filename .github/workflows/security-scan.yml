@@ -30,32 +30,6 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Check for security-relevant changes
-      id: changes
-      run: |
-        if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "should_scan=true" >> $GITHUB_OUTPUT
-          echo "containerfile=true" >> $GITHUB_OUTPUT
-          echo "🔄 Scheduled or manual run - performing full security scan" >> $GITHUB_STEP_SUMMARY
-        else
-          # Check for changes in security-relevant files
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
-          
-          if echo "$CHANGED_FILES" | grep -qE "(Containerfile|\.dockerfile|\.sh|\.github/workflows/security-scan\.yml)"; then
-            echo "should_scan=true" >> $GITHUB_OUTPUT
-            echo "🔍 Security-relevant files changed - running security scan" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "should_scan=false" >> $GITHUB_OUTPUT  
-            echo "⏭️ No security-relevant changes detected - skipping scan" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if echo "$CHANGED_FILES" | grep -q "Containerfile"; then
-            echo "containerfile=true" >> $GITHUB_OUTPUT
-          else
-            echo "containerfile=false" >> $GITHUB_OUTPUT
-          fi
-        fi
-
   dockerfile-security:
     name: Dockerfile Security Scan
     runs-on: ubuntu-latest
