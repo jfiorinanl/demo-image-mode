@@ -1,0 +1,537 @@
+/* Dashboard Body Styles */
+.dashboard-body {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    min-height: 100vh;
+    font-family: 'Titillium Web', sans-serif;
+}
+
+.dashboard-main {
+    min-height: calc(100vh - 140px);
+    padding-bottom: 2rem;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.metrics-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.metrics-title {
+    color: var(--netlabs-primary);
+    font-size: 1.5rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.metrics-subtitle {
+    color: #BCE3CC;
+    font-size: 0.9rem;
+    margin: 5px 0 0 0;
+    opacity: 0.8;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.metric-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 15px;
+    border: 1px solid rgba(105, 191, 211, 0.3);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card:hover {
+    border-color: var(--netlabs-primary);
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+}
+
+.metric-card.critical {
+    border-color: #ff6b6b;
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+    animation: pulse 2s infinite;
+}
+
+.metric-card.optimal {
+    border-color: #BCE3CC;
+    box-shadow: 0 0 20px rgba(188, 227, 204, 0.3);
+}
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(255, 107, 107, 0.3); }
+    50% { box-shadow: 0 0 30px rgba(255, 107, 107, 0.5); }
+}
+
+.metric-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.metric-name {
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.metric-icon {
+    width: 20px;
+    height: 20px;
+    opacity: 0.7;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 5px 0;
+    transition: all 0.3s ease;
+}
+
+.metric-value.cpu { color: #69BFD3; }
+.metric-value.memory { color: #BCE3CC; }
+.metric-value.response { color: #6BB8CA; }
+.metric-value.requests { color: #5FA8BA; }
+
+.metric-unit {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-left: 4px;
+}
+
+.metric-change {
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-top: 5px;
+}
+
+.metric-change.up {
+    color: #ff6b6b;
+}
+
+.metric-change.down {
+    color: #BCE3CC;
+}
+
+.metric-chart {
+    height: 60px;
+    margin-top: 10px;
+}
+
+/* Gauge Charts */
+.gauge-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 10px auto;
+}
+
+.gauge-chart {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.gauge-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 8;
+}
+
+.gauge-progress {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: all 0.5s ease;
+    transform-origin: center;
+}
+
+.gauge-progress.cpu { stroke: #69BFD3; }
+.gauge-progress.memory { stroke: #BCE3CC; }
+
+.gauge-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: white;
+    font-weight: 600;
+}
+
+.gauge-value {
+    font-size: 1.2rem;
+    display: block;
+}
+
+.gauge-label {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    display: block;
+}
+
+/* System State Banner */
+.system-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(45deg, var(--netlabs-primary), #6BB8CA);
+    color: white;
+    padding: 20px 40px;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    z-index: 2000;
+    display: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    animation: bannerPop 0.5s ease-out;
+}
+
+.system-banner.active {
+    display: block;
+}
+
+@keyframes bannerPop {
+    from {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Performance Comparison */
+.performance-comparison {
+    display: none;
+    background: rgba(0, 0, 0, 0.9);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3000;
+    padding: 40px;
+    align-items: center;
+    justify-content: center;
+}
+
+.performance-comparison.active {
+    display: flex;
+}
+
+.comparison-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 600px;
+    text-align: center;
+}
+
+.comparison-title {
+    font-size: 2rem;
+    color: var(--netlabs-primary);
+    margin-bottom: 30px;
+    font-weight: 700;
+}
+
+.comparison-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin: 30px 0;
+}
+
+.comparison-item {
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.comparison-item.before {
+    background: rgba(255, 107, 107, 0.1);
+    border-left: 4px solid #ff6b6b;
+}
+
+.comparison-item.after {
+    background: rgba(188, 227, 204, 0.1);
+    border-left: 4px solid #BCE3CC;
+}
+
+.comparison-label {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    margin-bottom: 5px;
+}
+
+.comparison-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.comparison-improvement {
+    color: #BCE3CC;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 20px 0;
+}
+
+/* Control Panel */
+.control-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1001;
+}
+
+.control-btn {
+    background: var(--netlabs-primary);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(105, 191, 211, 0.3);
+}
+
+.control-btn:hover {
+    background: #5FA8BA;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(105, 191, 211, 0.4);
+}
+
+.control-btn.active {
+    background: #BCE3CC;
+    color: #333;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .metrics-dashboard {
+        padding: 10px;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .metric-card {
+        padding: 12px;
+    }
+    
+    .control-panel {
+        bottom: 10px;
+        right: 10px;
+    }
+    
+    .control-btn {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Chart animations */
+.chart-line {
+    stroke: var(--netlabs-primary);
+    stroke-width: 2;
+    fill: none;
+    animation: drawLine 1s ease-in-out;
+}
+
+@keyframes drawLine {
+    from {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+    }
+    to {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 0;
+    }
+}
+
+/* Loading states */
+.metric-loading {
+    opacity: 0.5;
+    position: relative;
+}
+
+.metric-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--netlabs-primary);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+/* System Status Panel Improvements */
+.platform-status {
+    transition: all 0.3s ease;
+}
+
+.platform-status:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Version change animation */
+.version-updated {
+    animation: versionPulse 0.6s ease-in-out;
+}
+
+@keyframes versionPulse {
+    0% { 
+        background-color: #28a745;
+        color: white;
+        transform: scale(1);
+    }
+    50% { 
+        background-color: #28a745;
+        color: white;
+        transform: scale(1.05);
+    }
+    100% { 
+        background-color: transparent;
+        color: inherit;
+        transform: scale(1);
+    }
+}
+
+/* Update status badge animations */
+.badge {
+    transition: all 0.3s ease;
+}
+
+.badge.bg-warning {
+    animation: pulse 2s infinite;
+}
+
+.badge.bg-info {
+    animation: gentle-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes gentle-glow {
+    from {
+        box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    }
+    to {
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.8);
+    }
+}
+
+/* Spinner for updating status */
+.spinner-border-sm {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+/* Uptime Display Styles */
+.uptime-display {
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.uptime-stat h3 {
+    margin-bottom: 5px;
+    font-weight: 700;
+}
+
+.uptime-chart {
+    height: 200px;
+    position: relative;
+}
+
+/* Network Stats Styles */
+.network-stats {
+    padding: 15px 0;
+}
+
+.network-item {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.network-item:last-child {
+    border-bottom: none;
+}
+
+/* System Information Panel */
+.system-info-section {
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    height: 100%;
+}
+
+.info-item {
+    padding: 5px 0;
+    font-size: 0.9rem;
+}
+
+/* Dashboard specific metric cards */
+.dashboard-body .metric-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(105, 191, 211, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.dashboard-body .metric-card:hover {
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive adjustments for dashboard */
+@media (max-width: 768px) {
+    .dashboard-main {
+        padding: 10px;
+    }
+    
+    .uptime-display {
+        padding: 15px;
+    }
+    
+    .system-info-section {
+        margin-bottom: 15px;
+    }
+}
+
+/* Header badges in dark navbar */
+.navbar-dark .badge {
+    font-weight: 600;
+}
