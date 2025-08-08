@@ -40,9 +40,9 @@ COPY web/ /usr/share/www/html/
 
 #install npm dependencies and setup metrics server
 RUN cd /usr/share/www/html && \
-    mkdir -p /tmp/npm-cache && \
-    npm config set cache /tmp/npm-cache && \
-    npm install express --no-fund --no-audit --unsafe-perm=true
+    echo '{"name":"netlabs-demo","version":"1.0.0","dependencies":{"express":"^4.18.0"}}' > package.json && \
+    HOME=/tmp npm_config_cache=/tmp/npm-cache npm_config_prefix=/tmp/npm-prefix \
+    npm install --no-fund --no-audit --unsafe-perm=true
 
 #create systemd service for metrics server
 RUN <<EOSERVICE
@@ -67,7 +67,7 @@ systemctl enable metrics-server
 EOSERVICE
 
 #clean up caches in the image and lint the container
-RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig /tmp/npm-cache -rf
+RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig /tmp/npm-cache /tmp/npm-prefix -rf
 RUN bootc container lint
 
 EXPOSE 80
