@@ -29,7 +29,7 @@
                 <div class="nav-item">
                     <div class="d-flex align-items-center">
                         <span class="text-light me-3">Version:</span>
-                        <span class="badge bg-primary" id="version-badge">v2.1.0</span>
+                        <span class="badge bg-primary" id="version-badge header-version">v2.1.0</span>
                         <span class="text-light ms-3 me-3">Status:</span>
                         <span class="badge bg-success" id="system-status-badge">Online</span>
                         <span class="text-light ms-3 me-3">Updates:</span>
@@ -56,10 +56,34 @@
     <main class="dashboard-main pt-2">
         <div class="container-fluid">
             
+            <!-- Hero Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="hero-section text-center py-4">
+                        <h1 class="hero-title">RHEL 10 Image Mode</h1>
+                        <p class="hero-subtitle">Zero Downtime Enterprise Updates with bootc</p>
+                        <div class="hero-stats d-flex justify-content-center gap-4 mt-3">
+                            <div class="stat-item">
+                                <strong class="text-primary">99.99%</strong>
+                                <small class="d-block text-muted">Uptime</small>
+                            </div>
+                            <div class="stat-item">
+                                <strong class="text-success">Active</strong>
+                                <small class="d-block text-muted">Status</small>
+                            </div>
+                            <div class="stat-item">
+                                <strong class="text-info">Production</strong>
+                                <small class="d-block text-muted">Environment</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- System Overview Cards -->
             <div class="row g-4 mb-4">
                 <div class="col-lg-3 col-md-6">
-                    <div class="metric-card">
+                    <div class="metric-card" id="cpu-card">
                         <div class="metric-header">
                             <span class="metric-name">CPU Usage</span>
                             <span class="metric-icon">🖥️</span>
@@ -79,7 +103,7 @@
                 </div>
                 
                 <div class="col-lg-3 col-md-6">
-                    <div class="metric-card">
+                    <div class="metric-card" id="memory-card">
                         <div class="metric-header">
                             <span class="metric-name">Memory Usage</span>
                             <span class="metric-icon">💾</span>
@@ -99,7 +123,7 @@
                 </div>
                 
                 <div class="col-lg-3 col-md-6">
-                    <div class="metric-card">
+                    <div class="metric-card" id="response-card">
                         <div class="metric-header">
                             <span class="metric-name">Response Time</span>
                             <span class="metric-icon">⚡</span>
@@ -139,8 +163,8 @@
                             <div class="row">
                                 <div class="col-md-3 text-center">
                                     <div class="uptime-stat">
-                                        <h3 class="text-success" id="current-uptime">0d 0h 0m</h3>
-                                        <small class="text-muted">Current Session</small>
+                                        <h3 class="text-success" id="current-uptime">0h 0m 0s</h3>
+                                        <small class="text-muted">Web Server Uptime</small>
                                     </div>
                                 </div>
                                 <div class="col-md-3 text-center">
@@ -214,6 +238,7 @@
                             <div class="col-md-4">
                                 <div class="system-info-section">
                                     <h6 class="text-primary mb-3">Container Image</h6>
+                                    <div id="version-display"></div>
                                     <div class="info-item d-flex justify-content-between mb-2">
                                         <span>Current Version:</span>
                                         <span class="fw-bold" id="current-version-display">v2.1.0</span>

@@ -107,22 +107,29 @@ class MetricsDashboard {
     setupEventListeners() {
         // Auto-start metrics collection when dashboard is shown
         this.startMetricsCollection();
+        this.serverStartTime = Date.now(); // Track when we started
     }
     
     updateUptimeDisplay() {
-        // Update current uptime
+        // Update current uptime - show server uptime (web server uptime)
         const uptimeElement = document.getElementById('current-uptime');
         if (uptimeElement) {
             const uptime = this.metricsData.length > 0 
                 ? this.metricsData[this.metricsData.length - 1].uptime 
                 : { app: 0 };
             
-            const seconds = Math.floor(uptime.app);
-            const days = Math.floor(seconds / 86400);
-            const hours = Math.floor((seconds % 86400) / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
+            const totalSeconds = Math.floor(uptime.app);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
             
-            uptimeElement.textContent = `${days}d ${hours}h ${minutes}m`;
+            // Format with hours, minutes, and seconds
+            if (days > 0) {
+                uptimeElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+            } else {
+                uptimeElement.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            }
         }
         
         // Update total requests
@@ -137,6 +144,33 @@ class MetricsDashboard {
         const lastUpdateElement = document.getElementById('last-update');
         if (lastUpdateElement && this.updateStatus.current_version !== 'v2.1.0') {
             lastUpdateElement.textContent = 'Recent';
+        }
+    }
+    
+    updateRealtimeUptime() {
+        // Update uptime in real-time every second
+        const uptimeElement = document.getElementById('current-uptime');
+        if (uptimeElement && this.metricsData.length > 0) {
+            // Get the base uptime from the last metrics fetch
+            const lastMetrics = this.metricsData[this.metricsData.length - 1];
+            const baseUptime = lastMetrics.uptime ? lastMetrics.uptime.app : 0;
+            const fetchTime = lastMetrics.timestamp || Date.now();
+            
+            // Add the seconds elapsed since the last fetch
+            const secondsSinceFetch = Math.floor((Date.now() - fetchTime) / 1000);
+            const currentUptime = baseUptime + secondsSinceFetch;
+            
+            const days = Math.floor(currentUptime / 86400);
+            const hours = Math.floor((currentUptime % 86400) / 3600);
+            const minutes = Math.floor((currentUptime % 3600) / 60);
+            const seconds = currentUptime % 60;
+            
+            // Format with hours, minutes, and seconds
+            if (days > 0) {
+                uptimeElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+            } else {
+                uptimeElement.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            }
         }
         
         // Update uptime chart with new data point
@@ -168,10 +202,19 @@ class MetricsDashboard {
             clearInterval(this.metricsInterval);
         }
         
+        if (this.uptimeInterval) {
+            clearInterval(this.uptimeInterval);
+        }
+        
         this.metricsInterval = setInterval(() => {
             this.fetchMetrics();
             this.checkForUpdates();
         }, 5000); // Update every 5 seconds
+        
+        // Separate timer for real-time uptime display (every second)
+        this.uptimeInterval = setInterval(() => {
+            this.updateRealtimeUptime();
+        }, 1000);
         
         // Initial fetch
         this.fetchMetrics();
