@@ -39,7 +39,10 @@ EORUN
 COPY web/ /usr/share/www/html/
 
 #install npm dependencies and setup metrics server
-RUN cd /usr/share/www/html && npm install express
+RUN cd /usr/share/www/html && \
+    mkdir -p /tmp/npm-cache && \
+    npm config set cache /tmp/npm-cache && \
+    npm install express --no-fund --no-audit --unsafe-perm=true
 
 #create systemd service for metrics server
 RUN <<EOSERVICE
@@ -64,7 +67,7 @@ systemctl enable metrics-server
 EOSERVICE
 
 #clean up caches in the image and lint the container
-RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig -rf
+RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig /tmp/npm-cache -rf
 RUN bootc container lint
 
 EXPOSE 80

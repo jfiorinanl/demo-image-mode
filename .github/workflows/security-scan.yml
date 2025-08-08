@@ -17,24 +17,9 @@ permissions:
   actions: read
 
 jobs:
-  check-changes:
-    name: Check Security-Relevant Changes
-    runs-on: ubuntu-latest
-    outputs:
-      should_scan: ${{ steps.changes.outputs.should_scan }}
-      containerfile_changed: ${{ steps.changes.outputs.containerfile }}
-      
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
   dockerfile-security:
     name: Dockerfile Security Scan
     runs-on: ubuntu-latest
-    needs: check-changes
-    if: needs.check-changes.outputs.should_scan == 'true'
     
     steps:
     - name: Checkout repository
@@ -130,8 +115,6 @@ jobs:
   container-security:
     name: Container Image Security Scan
     runs-on: ubuntu-latest
-    needs: [check-changes]
-    if: needs.check-changes.outputs.containerfile_changed == 'true'
     env:
       SMDEV_CONTAINER_OFF: 1
       SOURCE_REGISTRY_HOST: "registry.redhat.io"
@@ -297,8 +280,6 @@ jobs:
   dependency-security:
     name: Dependency Security Scan
     runs-on: ubuntu-latest
-    needs: [check-changes]
-    if: needs.check-changes.outputs.should_scan == 'true'
     
     steps:
     - name: Checkout repository
@@ -346,65 +327,48 @@ jobs:
   security-summary:
     name: Security Scan Summary
     runs-on: ubuntu-latest
-    needs: [check-changes, dockerfile-security, container-security, dependency-security]
+    needs: [ dockerfile-security, container-security, dependency-security]
     if: always()
     
     steps:
     - name: Security Scan Results
       run: |
         echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Dockerfile Security | ${{ needs.dockerfile-security.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Container Security | ${{ needs.container-security.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Dependency Security | ${{ needs.dependency-security.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         
-        if [ "${{ needs.check-changes.outputs.should_scan }}" = "false" ]; then
-          echo "⏭️ **Security scan skipped** - No security-relevant changes detected" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Skipped scans save approximately 5-8 minutes of CI time ⚡" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Dockerfile Security | ${{ needs.dockerfile-security.result }} |" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ needs.check-changes.outputs.containerfile_changed }}" = "true" ]; then
-            echo "| Container Security | ${{ needs.container-security.result }} |" >> $GITHUB_STEP_SUMMARY
-          else  
-            echo "| Container Security | skipped (no Containerfile changes) |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "| Dependency Security | ${{ needs.dependency-security.result }} |" >> $GITHUB_STEP_SUMMARY
+        # Check for critical failures
+        CRITICAL_FAILED=false
+        
+        if [ "${{ needs.dockerfile-security.result }}" == "failure" ]; then
+          echo "❌ **CRITICAL**: Dockerfile security scan failed" >> $GITHUB_STEP_SUMMARY
+          CRITICAL_FAILED=true
+        fi
+        
+        if [ "${{ needs.container-security.result }}" == "failure" ]; then
+          echo "❌ **CRITICAL**: Container security scan failed" >> $GITHUB_STEP_SUMMARY
+          CRITICAL_FAILED=true
+        fi
+        
+        if [ "${{ needs.dependency-security.result }}" == "failure" ]; then
+          echo "⚠️ **WARNING**: Dependency security scan failed" >> $GITHUB_STEP_SUMMARY
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
         
-        # Check for critical failures (only if scans were run)
-        if [ "${{ needs.check-changes.outputs.should_scan }}" = "true" ]; then
-          CRITICAL_FAILED=false
-          
-          if [ "${{ needs.dockerfile-security.result }}" == "failure" ]; then
-            echo "❌ **CRITICAL**: Dockerfile security scan failed" >> $GITHUB_STEP_SUMMARY
-            CRITICAL_FAILED=true
-          fi
-          
-          if [ "${{ needs.check-changes.outputs.containerfile_changed }}" = "true" ] && [ "${{ needs.container-security.result }}" == "failure" ]; then
-            echo "❌ **CRITICAL**: Container security scan failed" >> $GITHUB_STEP_SUMMARY
-            CRITICAL_FAILED=true
-          fi
-          
-          if [ "${{ needs.dependency-security.result }}" == "failure" ]; then
-            echo "⚠️ **WARNING**: Dependency security scan failed" >> $GITHUB_STEP_SUMMARY
-          fi
-          
+        # Fail if critical security issues found
+        if [ "$CRITICAL_FAILED" = "true" ]; then
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
-          
-          # Fail if critical security issues found
-          if [ "$CRITICAL_FAILED" = "true" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🛑 **SECURITY SCAN: FAILED**" >> $GITHUB_STEP_SUMMARY
-            echo "Critical security issues detected. Pipeline blocked." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "✅ **SECURITY SCAN: PASSED**" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "🛑 **SECURITY SCAN: FAILED**" >> $GITHUB_STEP_SUMMARY
+          echo "Critical security issues detected. Pipeline blocked." >> $GITHUB_STEP_SUMMARY
+          exit 1
         else
-          echo "✅ **SECURITY SCAN: SKIPPED** (no relevant changes)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **SECURITY SCAN: PASSED**" >> $GITHUB_STEP_SUMMARY
         fi
