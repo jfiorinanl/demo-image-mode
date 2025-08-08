@@ -25,14 +25,26 @@ class SystemStatusManager {
     
     async updateSystemStatus() {
         try {
-            const response = await fetch('/api/update-status');
-            const status = await response.json();
+            const cacheBuster = Date.now();
+            const response = await fetch(`/api/update-status?_cb=${cacheBuster}`);
             
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                console.warn('System status API not available - using fallback');
+                this.showOfflineStatus();
+                return;
+            }
+            
+            const status = await response.json();
             this.updateVersionDisplay(status);
             this.updateStatusBadge(status);
             
         } catch (error) {
-            console.error('Error updating system status:', error);
+            console.warn('System status API unavailable:', error.message);
             this.showOfflineStatus();
         }
     }

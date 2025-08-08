@@ -20,8 +20,9 @@ class VersionManager {
 
     async loadVersionInfo() {
         try {
-            // Try to load version.json first (build-time generated)
-            const response = await fetch('/version.json');
+            // Try to load version.json first (build-time generated) - add cache busting
+            const cacheBuster = Date.now();
+            const response = await fetch(`/version.json?_cb=${cacheBuster}`);
             if (response.ok) {
                 this.versionData = await response.json();
                 return;

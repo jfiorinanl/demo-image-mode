@@ -189,12 +189,26 @@ jobs:
           echo "image=${{ env.TEST_IMAGE }}" >> $GITHUB_OUTPUT
           echo "build_success=true" >> $GITHUB_OUTPUT
           
-          # Verify image exists
-          if podman images | grep -q ${{ env.TEST_IMAGE }}; then
-            echo "✅ Image verified in local registry" >> $GITHUB_STEP_SUMMARY
+          # Verify image exists in podman
+          if podman images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${{ env.TEST_IMAGE }}:latest$"; then
+            echo "✅ Image verified in podman registry" >> $GITHUB_STEP_SUMMARY
+            podman images | grep ${{ env.TEST_IMAGE }}
           else
-            echo "❌ Image not found in local registry" >> $GITHUB_STEP_SUMMARY
-            podman images
+            echo "❌ Image not found in podman registry" >> $GITHUB_STEP_SUMMARY
+            echo "Available images:" >> $GITHUB_STEP_SUMMARY
+            podman images --format "table {{.Repository}}:{{.Tag}} {{.ID}} {{.Created}}"
+            exit 1
+          fi
+          
+          # Save image for Trivy scan
+          echo "Saving image for Trivy scan..."
+          podman save ${{ env.TEST_IMAGE }}:latest -o /tmp/security-test-image.tar
+          if [ -f "/tmp/security-test-image.tar" ]; then
+            echo "✅ Image saved to /tmp/security-test-image.tar" >> $GITHUB_STEP_SUMMARY
+            echo "image_archive=/tmp/security-test-image.tar" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to save image archive" >> $GITHUB_STEP_SUMMARY
+            exit 1
           fi
         else
           echo "❌ Test image build failed" >> $GITHUB_STEP_SUMMARY
@@ -215,13 +229,41 @@ jobs:
           echo "✅ Trivy found in cache"
         fi
         
-        echo "Running Trivy scan on image: ${{ env.TEST_IMAGE }}"
+        # First try scanning the image directly from podman
+        echo "Running Trivy scan on podman image: ${{ env.TEST_IMAGE }}"
         
-        # Run Trivy scan with cache optimization
-        trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy ${{ env.TEST_IMAGE }}
+        if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy --image-src podman ${{ env.TEST_IMAGE }}:latest; then
+          echo "✅ Trivy scan completed successfully (podman source)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ Podman scan failed, trying with image archive..." >> $GITHUB_STEP_SUMMARY
+          
+          # Fallback: scan from saved tar archive
+          if [ -f "${{ steps.build-test-image.outputs.image_archive }}" ]; then
+            echo "Running Trivy scan on image archive: ${{ steps.build-test-image.outputs.image_archive }}"
+            
+            if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy --input ${{ steps.build-test-image.outputs.image_archive }}; then
+              echo "✅ Trivy scan completed successfully (archive source)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Both podman and archive scans failed" >> $GITHUB_STEP_SUMMARY
+              echo "Attempting basic scan without source specification..."
+              
+              # Last resort: basic scan
+              if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy ${{ env.TEST_IMAGE }}; then
+                echo "✅ Trivy scan completed (basic mode)" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ All Trivy scan methods failed" >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
+            fi
+          else
+            echo "❌ Image archive not found, cannot perform fallback scan" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        fi
         
         if [ -f "trivy-results.sarif" ]; then
-          echo "✅ Trivy scan completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SARIF results generated successfully" >> $GITHUB_STEP_SUMMARY
+          ls -la trivy-results.sarif
         else
           echo "❌ Trivy scan failed to generate SARIF output" >> $GITHUB_STEP_SUMMARY
           exit 1

@@ -19,17 +19,44 @@ systemctl enable httpd
 mv /var/www /usr/share/www
 sed -ie 's,/var/www,/usr/share/www,' /etc/httpd/conf/httpd.conf
 
-#configure Apache proxy for API routes
+#configure Apache proxy for API routes and disable caching
 cat >> /etc/httpd/conf/httpd.conf << 'EOF'
 
-# Enable mod_proxy and mod_proxy_http
+# Enable required modules
 LoadModule proxy_module modules/mod_proxy.so
 LoadModule proxy_http_module modules/mod_proxy_http.so
+LoadModule headers_module modules/mod_headers.so
+LoadModule expires_module modules/mod_expires.so
 
 # Proxy API routes to Node.js server
 ProxyPreserveHost On
 ProxyPass /api/ http://localhost:3001/api/
 ProxyPassReverse /api/ http://localhost:3001/api/
+
+# Disable caching for demo updates - important for bootc image mode updates
+<Directory "/usr/share/www/html">
+    # Disable browser caching
+    ExpiresActive On
+    ExpiresDefault "access plus 0 seconds"
+    
+    # Set cache-control headers to prevent caching
+    Header always set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+    Header always set Pragma "no-cache"
+    Header always set Expires "Thu, 01 Jan 1970 00:00:00 GMT"
+    
+    # Add ETag based on file modification time for proper cache busting
+    FileETag MTime Size
+</Directory>
+
+# Special handling for CSS, JS, and other static assets
+<FilesMatch "\.(css|js|html|json|svg|png|jpg|jpeg|gif|ico)$">
+    # Force revalidation
+    Header always set Cache-Control "no-cache, must-revalidate, max-age=0"
+    Header always set Pragma "no-cache"
+    
+    # Add version headers for debugging
+    Header always set X-Bootc-Demo "image-mode-v2"
+</FilesMatch>
 
 EOF
 
@@ -49,15 +76,23 @@ RUN <<EOSERVICE
 cat > /etc/systemd/system/metrics-server.service << 'EOF'
 [Unit]
 Description=NetLabs Demo Metrics Server
-After=network.target
+After=network.target httpd.service
+Wants=httpd.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/usr/share/www/html
+Environment=NODE_ENV=production
+Environment=PORT=3001
 ExecStart=/usr/bin/node metrics-server.js
+ExecStartPre=/bin/sleep 5
 Restart=always
-RestartSec=3
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target
