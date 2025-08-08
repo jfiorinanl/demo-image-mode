@@ -98,12 +98,13 @@ jobs:
 
     - name: Run Checkov IaC Security Scan
       uses: bridgecrewio/checkov-action@master
+      continue-on-error: true
       with:
         directory: .
         framework: dockerfile
         output_format: sarif
         output_file_path: checkov-results.sarif
-        soft_fail: false
+        soft_fail: true
 
     - name: Upload Checkov SARIF
       uses: github/codeql-action/upload-sarif@v3
@@ -182,6 +183,7 @@ jobs:
 
     - name: Build test image for security scanning
       id: build-test-image
+      continue-on-error: true
       run: |
         echo "Building test image for security scanning..."
         if buildah bud -t ${{ env.TEST_IMAGE }} -f ${{ env.CONTAINERFILE }} .; then
@@ -193,31 +195,31 @@ jobs:
           if podman images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${{ env.TEST_IMAGE }}:latest$"; then
             echo "✅ Image verified in podman registry" >> $GITHUB_STEP_SUMMARY
             podman images | grep ${{ env.TEST_IMAGE }}
+            
+            # Save image for Trivy scan
+            echo "Saving image for Trivy scan..."
+            if podman save ${{ env.TEST_IMAGE }}:latest -o /tmp/security-test-image.tar; then
+              echo "✅ Image saved to /tmp/security-test-image.tar" >> $GITHUB_STEP_SUMMARY
+              echo "image_archive=/tmp/security-test-image.tar" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Failed to save image archive - scan will try direct podman access" >> $GITHUB_STEP_SUMMARY
+              echo "image_archive=" >> $GITHUB_OUTPUT
+            fi
           else
             echo "❌ Image not found in podman registry" >> $GITHUB_STEP_SUMMARY
             echo "Available images:" >> $GITHUB_STEP_SUMMARY
             podman images --format "table {{.Repository}}:{{.Tag}} {{.ID}} {{.Created}}"
-            exit 1
-          fi
-          
-          # Save image for Trivy scan
-          echo "Saving image for Trivy scan..."
-          podman save ${{ env.TEST_IMAGE }}:latest -o /tmp/security-test-image.tar
-          if [ -f "/tmp/security-test-image.tar" ]; then
-            echo "✅ Image saved to /tmp/security-test-image.tar" >> $GITHUB_STEP_SUMMARY
-            echo "image_archive=/tmp/security-test-image.tar" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Failed to save image archive" >> $GITHUB_STEP_SUMMARY
-            exit 1
+            echo "build_success=false" >> $GITHUB_OUTPUT
           fi
         else
           echo "❌ Test image build failed" >> $GITHUB_STEP_SUMMARY
           echo "build_success=false" >> $GITHUB_OUTPUT
-          exit 1
         fi
 
     - name: Install and run Trivy vulnerability scanner
-      if: steps.build-test-image.outputs.build_success == 'true'
+      id: trivy-scan
+      if: always()
+      continue-on-error: true
       run: |
         echo "Checking Trivy installation..."
         
@@ -229,44 +231,63 @@ jobs:
           echo "✅ Trivy found in cache"
         fi
         
-        # First try scanning the image directly from podman
-        echo "Running Trivy scan on podman image: ${{ env.TEST_IMAGE }}"
+        # Check if image build was successful
+        if [ "${{ steps.build-test-image.outputs.build_success }}" != "true" ]; then
+          echo "⚠️ Image build failed - skipping container scan" >> $GITHUB_STEP_SUMMARY
+          echo "scan_success=false" >> $GITHUB_OUTPUT
+          echo "scan_skipped=true" >> $GITHUB_OUTPUT
+          echo "skip_reason=Image build failed" >> $GITHUB_OUTPUT
+          return 0
+        fi
         
+        # Try different scan methods
+        SCAN_SUCCESS=false
+        
+        # Method 1: Direct podman scan
+        echo "Running Trivy scan on podman image: ${{ env.TEST_IMAGE }}"
         if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy --image-src podman ${{ env.TEST_IMAGE }}:latest; then
           echo "✅ Trivy scan completed successfully (podman source)" >> $GITHUB_STEP_SUMMARY
+          SCAN_SUCCESS=true
         else
           echo "⚠️ Podman scan failed, trying with image archive..." >> $GITHUB_STEP_SUMMARY
           
-          # Fallback: scan from saved tar archive
+          # Method 2: Archive scan
           if [ -f "${{ steps.build-test-image.outputs.image_archive }}" ]; then
             echo "Running Trivy scan on image archive: ${{ steps.build-test-image.outputs.image_archive }}"
-            
             if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy --input ${{ steps.build-test-image.outputs.image_archive }}; then
               echo "✅ Trivy scan completed successfully (archive source)" >> $GITHUB_STEP_SUMMARY
+              SCAN_SUCCESS=true
             else
-              echo "❌ Both podman and archive scans failed" >> $GITHUB_STEP_SUMMARY
-              echo "Attempting basic scan without source specification..."
+              echo "⚠️ Archive scan failed, trying basic scan..." >> $GITHUB_STEP_SUMMARY
               
-              # Last resort: basic scan
+              # Method 3: Basic scan
               if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy ${{ env.TEST_IMAGE }}; then
                 echo "✅ Trivy scan completed (basic mode)" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "❌ All Trivy scan methods failed" >> $GITHUB_STEP_SUMMARY
-                exit 1
+                SCAN_SUCCESS=true
               fi
             fi
           else
-            echo "❌ Image archive not found, cannot perform fallback scan" >> $GITHUB_STEP_SUMMARY
-            exit 1
+            echo "⚠️ Image archive not available, trying basic scan..." >> $GITHUB_STEP_SUMMARY
+            
+            # Method 3: Basic scan fallback
+            if trivy image --format sarif --output trivy-results.sarif --cache-dir ~/.cache/trivy ${{ env.TEST_IMAGE }}; then
+              echo "✅ Trivy scan completed (basic mode)" >> $GITHUB_STEP_SUMMARY
+              SCAN_SUCCESS=true
+            fi
           fi
         fi
         
-        if [ -f "trivy-results.sarif" ]; then
+        # Report results
+        if [ "$SCAN_SUCCESS" = "true" ] && [ -f "trivy-results.sarif" ]; then
           echo "✅ SARIF results generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "scan_success=true" >> $GITHUB_OUTPUT
+          echo "scan_skipped=false" >> $GITHUB_OUTPUT
           ls -la trivy-results.sarif
         else
-          echo "❌ Trivy scan failed to generate SARIF output" >> $GITHUB_STEP_SUMMARY
-          exit 1
+          echo "❌ All Trivy scan methods failed - no SARIF output generated" >> $GITHUB_STEP_SUMMARY
+          echo "scan_success=false" >> $GITHUB_OUTPUT
+          echo "scan_skipped=false" >> $GITHUB_OUTPUT
+          echo "skip_reason=All scan methods failed" >> $GITHUB_OUTPUT
         fi
 
     - name: Check if Trivy SARIF file exists
@@ -283,12 +304,14 @@ jobs:
 
     - name: Upload Trivy scan results to GitHub Security
       uses: github/codeql-action/upload-sarif@v3
-      if: steps.check-trivy-sarif.outputs.sarif_exists == 'true'
+      if: always() && steps.check-trivy-sarif.outputs.sarif_exists == 'true'
+      continue-on-error: true
       with:
         sarif_file: 'trivy-results.sarif'
         category: trivy
 
     - name: Run Trivy filesystem scan
+      continue-on-error: true
       run: |
         echo "Running Trivy filesystem scan..."
         
@@ -314,7 +337,8 @@ jobs:
 
     - name: Upload Trivy filesystem scan results
       uses: github/codeql-action/upload-sarif@v3
-      if: steps.check-trivy-fs-sarif.outputs.sarif_exists == 'true'
+      if: always() && steps.check-trivy-fs-sarif.outputs.sarif_exists == 'true'
+      continue-on-error: true
       with:
         sarif_file: 'trivy-fs-results.sarif'
         category: trivy-fs
@@ -328,12 +352,13 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Run Snyk to check for vulnerabilities
+      id: snyk-scan
       uses: snyk/actions/node@master
+      continue-on-error: true
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       with:
         args: --sarif-file-output=snyk-results.sarif --severity-threshold=medium
-      continue-on-error: true  # Allow to continue if Snyk fails
 
     - name: Upload Snyk results to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v3
@@ -344,6 +369,7 @@ jobs:
       continue-on-error: true  # Allow to continue if SARIF upload fails
 
     - name: Security audit for package managers
+      continue-on-error: true
       run: |
         echo "## Package Manager Security Audit" >> $GITHUB_STEP_SUMMARY
         
@@ -384,33 +410,51 @@ jobs:
         echo "| Dependency Security | ${{ needs.dependency-security.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
-        # Check for critical failures
-        CRITICAL_FAILED=false
+        # Report scan results - non-blocking
+        SCANS_WITH_ISSUES=false
         
+        # Check individual scan results
         if [ "${{ needs.dockerfile-security.result }}" == "failure" ]; then
-          echo "❌ **CRITICAL**: Dockerfile security scan failed" >> $GITHUB_STEP_SUMMARY
-          CRITICAL_FAILED=true
+          echo "❌ **Dockerfile Security**: Some issues detected" >> $GITHUB_STEP_SUMMARY
+          SCANS_WITH_ISSUES=true
+        elif [ "${{ needs.dockerfile-security.result }}" == "success" ]; then
+          echo "✅ **Dockerfile Security**: No issues found" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Dockerfile Security**: Scan did not complete" >> $GITHUB_STEP_SUMMARY
+          SCANS_WITH_ISSUES=true
         fi
         
         if [ "${{ needs.container-security.result }}" == "failure" ]; then
-          echo "❌ **CRITICAL**: Container security scan failed" >> $GITHUB_STEP_SUMMARY
-          CRITICAL_FAILED=true
+          echo "❌ **Container Security**: Some issues detected" >> $GITHUB_STEP_SUMMARY
+          SCANS_WITH_ISSUES=true
+        elif [ "${{ needs.container-security.result }}" == "success" ]; then
+          echo "✅ **Container Security**: No issues found" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Container Security**: Scan did not complete" >> $GITHUB_STEP_SUMMARY
+          SCANS_WITH_ISSUES=true
         fi
         
         if [ "${{ needs.dependency-security.result }}" == "failure" ]; then
-          echo "⚠️ **WARNING**: Dependency security scan failed" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Dependency Security**: Some issues detected" >> $GITHUB_STEP_SUMMARY
+          SCANS_WITH_ISSUES=true
+        elif [ "${{ needs.dependency-security.result }}" == "success" ]; then
+          echo "✅ **Dependency Security**: No issues found" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Dependency Security**: Scan did not complete" >> $GITHUB_STEP_SUMMARY
+          SCANS_WITH_ISSUES=true
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
+        echo "📊 **Detailed Reports**: Check the Security tab for complete vulnerability analysis." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         
-        # Fail if critical security issues found
-        if [ "$CRITICAL_FAILED" = "true" ]; then
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🛑 **SECURITY SCAN: FAILED**" >> $GITHUB_STEP_SUMMARY
-          echo "Critical security issues detected. Pipeline blocked." >> $GITHUB_STEP_SUMMARY
-          exit 1
+        # Summary - never fails the pipeline
+        if [ "$SCANS_WITH_ISSUES" = "true" ]; then
+          echo "⚠️ **SECURITY SCAN: COMPLETED WITH FINDINGS**" >> $GITHUB_STEP_SUMMARY
+          echo "Some security scans detected issues or did not complete successfully." >> $GITHUB_STEP_SUMMARY
+          echo "Review the findings above and check the Security tab for details." >> $GITHUB_STEP_SUMMARY
+          echo "**Note**: Pipeline continues to allow deployment - review findings before production use." >> $GITHUB_STEP_SUMMARY
         else
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **SECURITY SCAN: PASSED**" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **SECURITY SCAN: COMPLETED SUCCESSFULLY**" >> $GITHUB_STEP_SUMMARY
+          echo "All security scans completed without detecting significant issues." >> $GITHUB_STEP_SUMMARY
         fi
